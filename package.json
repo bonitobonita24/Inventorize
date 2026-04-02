@@ -1,0 +1,17 @@
+{
+  "name": "inventorize",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "dev": "echo 'Run Phase 4 first'",
+    "build": "echo 'Run Phase 4 first'",
+    "lint": "echo 'Run Phase 4 first'",
+    "typecheck": "echo 'Run Phase 4 first'",
+    "db:generate": "echo 'Run Phase 4 first'",
+    "db:migrate": "echo 'Run Phase 4 first'",
+    "db:seed": "echo 'Run Phase 4 first'"
+  },
+  "devDependencies": {
+    "pnpm": "9.12.0"
+  }
+}

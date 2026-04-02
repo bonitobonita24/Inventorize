@@ -1,0 +1,6 @@
+{
+  "captureHistory": true,
+  "historyDir": ".specstory/history",
+  "specsDir": ".specstory/specs",
+  "autoInjectSpec": "v26-master-prompt.md"
+}

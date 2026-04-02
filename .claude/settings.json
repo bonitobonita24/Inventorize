@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allowedPaths": []
+  },
+  "mcp": {
+    "servers": {}
+  },
+  "autoUploadArtifacts": true,
+  "autoAttachEvents": true,
+  "autoAttachPreviews": true,
+  "restorePreviousSessions": true,
+  "showWelcome": true,
+  "authorizeDialogs": false
+}
