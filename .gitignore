@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+.next/
+.turbo/
+dist/
+build/
+
+# Environment files — NEVER commit real credentials
+.env
+.env.local
+.env.dev
+.env.staging
+.env.prod
+
+# Credentials master list — GITIGNORED FROM STEP 8. NO EXCEPTIONS.
+CREDENTIALS.md
+
+# Editor + OS
+.DS_Store
+*.log
+
+# Code review graph (machine-local)
+.code-review-graph/
+
+# WSL2 specific
+.wslconfig
+
+# VS Code
+.vscode/settings.json
+!.vscode/tasks.json
+
+# Git
+.cline/STATE.md
+
+# Skills node_modules
+.github/skills/**/node_modules/
