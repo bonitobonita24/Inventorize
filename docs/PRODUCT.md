@@ -11,9 +11,9 @@ Small and mid-size companies still track inventory in spreadsheets — leading t
 
 ## Core User Flows
 
-1. **Super admin onboards a new tenant**: Super admin opens tenant management → enters the tenant name → system auto-generates a URL slug (lowercased, spaces and special characters replaced with hyphens). The slug field is shown pre-filled and editable before saving. A real-time uniqueness check runs as the super_admin types — if the slug is already taken, an inline error is shown ("This slug is already taken — please choose another") and save is blocked. A URL preview is shown beneath the slug field (e.g. inventorize.powerbyte.app/[slug]/dashboard). Super admin also enters the contact email → system provisions tenant workspace with subdirectory route (app.com/tenant-slug/) → super admin creates the tenant's first admin user account with tenant assignment → system generates a one-time account setup token (cryptographically random, stored as a hash in the database, 24-hour expiry, single-use) → tenant admin receives welcome email containing a link to /auth/setup?token=[token] → admin clicks link, is prompted to set their own password, and logs in normally. The token is invalidated immediately on use or after 24 hours, whichever comes first. If the link expires, the super_admin can trigger a password reset from the user management page. Once the tenant is created, the slug is permanent and cannot be changed. Error: user creation fails → roll back tenant record, show retry option.
+1. **Super admin onboards a new tenant**: Super admin opens tenant management → creates new tenant (name, slug, contact email) → system provisions tenant workspace with subdirectory route (app.com/tenant-slug/) → super admin creates the tenant's first admin user account with tenant assignment → tenant admin receives welcome email → logs in and begins setup. Error: duplicate slug → block, show specific error. Error: user creation fails → roll back tenant record, show retry option.
 
-2. **Super admin manages the platform**: Super admin views all tenants list with status (active/suspended/trial) → can suspend or reactivate a tenant → can view cross-tenant metrics (total tenants, total products across platform, active users per tenant) → can impersonate a tenant admin for support (read-only mode) → all super admin actions create AuditLog entries. Impersonation is strictly read-only: server-side tRPC middleware returns FORBIDDEN on all mutation procedures when session.isImpersonating = true. Client-side UI also disables all action buttons, form submissions, and destructive controls. A persistent banner is shown at the top of every page: "View Only — Impersonating [Tenant Name]". All page visits during impersonation are written to the platform AuditLog with the impersonated tenantId. Super admin exits impersonation by clicking an "Exit Impersonation" button that clears the flag from the session. Error: suspending a tenant with active users → confirm prompt before proceeding.
+2. **Super admin manages the platform**: Super admin views all tenants list with status (active/suspended/trial) → can suspend or reactivate a tenant → can view cross-tenant metrics (total tenants, total products across platform, active users per tenant) → can impersonate a tenant admin for support (read-only mode) → all super admin actions create AuditLog entries. Error: suspending a tenant with active users → confirm prompt before proceeding.
 
 3. **Tenant admin creates a product**: Tenant admin opens product creation form → enters productCode, barcodeValue, name, category, unit, supplierCost, markupPercent, lowStockThreshold, serialTrackingEnabled → system auto-calculates sellingPrice → save with currentQuantity = 0 → AuditLog created with tenantId. All data scoped to tenant automatically via RLS. Error: duplicate productCode within tenant → block save. Error: duplicate barcodeValue within tenant → block save.
 
@@ -33,13 +33,11 @@ Small and mid-size companies still track inventory in spreadsheets — leading t
 
 11. **Any tenant user runs reports and exports**: Open dashboard or reports → apply filters → view data per role permissions → export as CSV → AuditLog for every export. All report data is tenant-scoped.
 
-12. **Any tenant user views the tenant dashboard**: User navigates to /[tenant-slug]/dashboard → sees KPI summary cards for the selected period (Today / This Week / This Month / Custom range). The inventory value KPI card is visible to admin and purchasing_staff only — hidden from warehouse_staff. Stock In vs Stock Out bar chart shown for the selected period. Low stock alert banner displayed if any products have currentQuantity <= lowStockThreshold; clicking the banner links to the Low Stock Report. All data is tenant-scoped — no data from other tenants is ever shown.
-
 ## Modules + Features
 
 ### Platform Administration (super_admin only)
 - Tenant list with search, filter by status (active/suspended/trial)
-- Tenant create form (name, slug [auto-generated from name, editable, real-time uniqueness check, URL preview shown], contact email)
+- Tenant create form (name, slug, contact email)
 - Tenant suspend / reactivate
 - Cross-tenant metrics dashboard (total tenants, total products, active users per tenant)
 - Tenant admin impersonation (read-only support mode)
@@ -145,11 +143,9 @@ Small and mid-size companies still track inventory in spreadsheets — leading t
 - Every important action must create an AuditLog entry — immutable
 - All tenant-scoped data must include tenantId — enforced by RLS at database level
 - Users can never see, query, or modify another tenant's data
-- When session.isImpersonating = true: all tRPC mutations return FORBIDDEN server-side regardless of role. Client UI reflects this with disabled controls and the impersonation banner.
 - Unique constraints (productCode, barcodeValue, poNumber, referenceNumber, serialValue) are scoped per tenant, not globally
 - Serial tracking applies only when product has serialTrackingEnabled = true
 - Barcode/QR scanning is input helper only — all scanned values must pass server-side validation
-- StockOut.printableSlipNumber format: 'SO-' + zero-padded 5-digit sequential number per tenant (e.g. SO-00001, SO-00002). Auto-generated at creation time, immutable, unique per tenant. The counter is never reset — numbers only ever increase.
 
 ## Integrations
 - Email (SMTP): daily low stock notification emails per tenant, welcome emails for new tenant admins — SES in production, MailHog in dev
@@ -159,7 +155,7 @@ Small and mid-size companies still track inventory in spreadsheets — leading t
 Environments: dev / staging / prod
 Hosting:      Single VPS or managed services
 Dev mode:     MODE A — WSL2 native (pre-locked)
-Docker Hub:   disabled
+Docker Hub:   enabled — hub_repo: bonitobonita24/inventorize
 
 ## Mobile Needs
 None — web only. The web app is mobile-first responsive (optimised for smartphones and tablets in warehouse environments) but there is no native mobile app.
@@ -253,7 +249,7 @@ Prod:    https://inventorize.powerbyte.app
 
 ## Infrastructure Notes
 Default: all services run in Docker Compose — mono-server for dev/staging/prod.
-Docker Hub publishing: disabled
+Docker Hub publishing: enabled — hub_repo: bonitobonita24/inventorize
 pgAdmin: included on all environments — credentials auto-generated by Phase 3
 CREDENTIALS.md: generated by Phase 3 — master credentials list for all envs, strictly gitignored
 Security: HTTP headers + rate limiter + DOMPurify sanitizer scaffolded by Phase 4 — always-on defaults
@@ -281,7 +277,6 @@ API style:                 tRPC
 ORM / DB layer:            Prisma
 Auth provider:             Auth.js v5 (sessions in PostgreSQL — white-label, zero external service)
 Auth strategy:             authjs
-Account setup token:       VerificationToken table (Auth.js v5 schema compatible). Fields: identifier (user email), token (hashed), expires (DateTime). Used for first-login setup links (24h expiry, single-use).
 Primary database:          PostgreSQL
 Cache / queue:             Valkey + BullMQ
 File storage:              MinIO (dev) / S3 (prod)
