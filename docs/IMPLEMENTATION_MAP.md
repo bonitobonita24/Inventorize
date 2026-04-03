@@ -25,12 +25,12 @@
 ## Scaffold Status (Phase 4 Parts)
 
 ### Part 1: Root Config Files
-- [ ] pnpm-workspace.yaml
-- [ ] turbo.json
-- [ ] tsconfig.base.json
-- [ ] .editorconfig
-- [ ] .prettierrc
-- [ ] .eslintrc.js
+- [x] pnpm-workspace.yaml
+- [x] turbo.json
+- [x] tsconfig.base.json
+- [x] .editorconfig
+- [x] .prettierrc
+- [x] .eslintrc.js
 
 ### Part 2: packages/shared + packages/api-client
 - [ ] packages/shared/src/types/
@@ -71,14 +71,14 @@
 ## Generated Files
 
 ### Root Config
-- [ ] pnpm-workspace.yaml
-- [ ] turbo.json
-- [ ] tsconfig.base.json
-- [ ] .editorconfig
-- [ ] .prettierrc
-- [ ] .eslintrc.js
-- [ ] .nvmrc
-- [ ] package.json
+- [x] pnpm-workspace.yaml
+- [x] turbo.json
+- [x] tsconfig.base.json
+- [x] .editorconfig
+- [x] .prettierrc
+- [x] .eslintrc.js
+- [x] .nvmrc
+- [x] package.json
 
 ### Governance Docs
 - [x] CLAUDE.md
