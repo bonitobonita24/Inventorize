@@ -1,0 +1,271 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Spec-Driven Platform V26 — inputs.yml Schema",
+  "description": "Validates inputs.yml structure and required fields",
+  "type": "object",
+  "required": ["app", "domains", "tenancy", "auth", "apps", "tech_stack", "jobs", "storage", "mobile", "docker", "security", "git", "models", "ports"],
+  "additionalProperties": false,
+  "properties": {
+    "app": {
+      "type": "object",
+      "required": ["name", "display_name", "slug", "tagline", "industry"],
+      "additionalProperties": false,
+      "properties": {
+        "name":         { "type": "string", "minLength": 1 },
+        "display_name": { "type": "string", "minLength": 1 },
+        "slug":         { "type": "string", "pattern": "^[a-z0-9-]+$" },
+        "tagline":      { "type": "string" },
+        "industry":     { "type": "string" }
+      }
+    },
+    "domains": {
+      "type": "object",
+      "required": ["prod", "staging"],
+      "additionalProperties": false,
+      "properties": {
+        "prod":    { "type": "string", "minLength": 1 },
+        "staging": { "type": "string", "minLength": 1 }
+      }
+    },
+    "tenancy": {
+      "type": "object",
+      "required": ["mode", "routing", "url_pattern", "shared_global_data"],
+      "additionalProperties": false,
+      "properties": {
+        "mode":              { "type": "string", "enum": ["single", "multi"] },
+        "routing":           { "type": "string", "enum": ["subdirectory", "subdomain"] },
+        "url_pattern":       { "type": "string" },
+        "shared_global_data": { "type": "boolean" },
+        "slug_generation":   { "type": "string" },
+        "slug_collision":    { "type": "string" }
+      }
+    },
+    "auth": {
+      "type": "object",
+      "required": ["provider", "strategy", "session_storage", "session_fields"],
+      "additionalProperties": false,
+      "properties": {
+        "provider":               { "type": "string" },
+        "strategy":               { "type": "string" },
+        "session_storage":        { "type": "string" },
+        "session_fields":         { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "first_login":            { "type": "string" },
+        "setup_token_expiry_hours": { "type": "integer", "minimum": 1 },
+        "login_error_message":    { "type": "string" }
+      }
+    },
+    "navigation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type":                         { "type": "string" },
+        "hardcoded":                    { "type": "boolean" },
+        "hidden_from_warehouse_staff":  { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "apps": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["name", "framework"],
+        "additionalProperties": false,
+        "properties": {
+          "name":      { "type": "string" },
+          "framework": { "type": "string", "enum": ["nextjs", "expo"] },
+          "type":      { "type": "string" },
+          "port":      { "type": ["integer", "null"] }
+        }
+      }
+    },
+    "packages": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "tech_stack": {
+      "type": "object",
+      "required": ["frontend", "api", "orm", "auth", "database", "cache", "queue", "storage_dev", "ui_components"],
+      "additionalProperties": false,
+      "properties": {
+        "frontend":       { "type": "string" },
+        "api":            { "type": "string" },
+        "orm":            { "type": "string" },
+        "auth":           { "type": "string" },
+        "database":       { "type": "string" },
+        "cache":          { "type": "string" },
+        "queue":          { "type": "string" },
+        "storage_dev":    { "type": "string" },
+        "storage_prod":   { "type": "string" },
+        "ui_components":  { "type": "string" },
+        "css":            { "type": "string" }
+      }
+    },
+    "jobs": {
+      "type": "object",
+      "required": ["enabled", "provider"],
+      "additionalProperties": false,
+      "properties": {
+        "enabled":  { "type": "boolean" },
+        "provider": { "type": "string" },
+        "queues": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name"],
+            "properties": {
+              "name":        { "type": "string" },
+              "cron":        { "type": ["string", "null"] },
+              "description": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "storage": {
+      "type": "object",
+      "required": ["enabled", "provider"],
+      "additionalProperties": false,
+      "properties": {
+        "enabled":            { "type": "boolean" },
+        "provider":           { "type": "string" },
+        "allowed_mime_types": { "type": "array", "items": { "type": "string" } },
+        "max_file_size_mb":   { "type": "integer", "minimum": 1 },
+        "path_pattern":       { "type": "string" },
+        "serve_files":        { "type": "boolean" },
+        "svg_html_blocked":   { "type": "boolean" }
+      }
+    },
+    "mobile": {
+      "type": "object",
+      "required": ["enabled"],
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" }
+      }
+    },
+    "docker": {
+      "type": "object",
+      "required": ["publish"],
+      "additionalProperties": false,
+      "properties": {
+        "publish":     { "type": "boolean" },
+        "registry":    { "type": "string" },
+        "hub_repo":    { "type": "string" },
+        "image_name":  { "type": "string" },
+        "platforms":   { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "security": {
+      "type": "object",
+      "required": ["rate_limits", "cors"],
+      "additionalProperties": false,
+      "properties": {
+        "rate_limits": {
+          "type": "object",
+          "required": ["public_per_min", "authenticated_per_min", "upload_per_min"],
+          "additionalProperties": false,
+          "properties": {
+            "public_per_min":        { "type": "integer", "minimum": 1 },
+            "authenticated_per_min": { "type": "integer", "minimum": 1 },
+            "upload_per_min":        { "type": "integer", "minimum": 1 }
+          }
+        },
+        "cors": {
+          "type": "object",
+          "required": ["dev", "staging", "prod"],
+          "additionalProperties": false,
+          "properties": {
+            "dev":     { "type": "string" },
+            "staging": { "type": "string" },
+            "prod":    { "type": "string" }
+          }
+        },
+        "security_layers":  { "type": "object" },
+        "impersonation":    { "type": "object" }
+      }
+    },
+    "reports": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kpi_periods":           { "type": "array", "items": { "type": "string" } },
+        "max_export_range_days": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "slip_numbers": { "type": "object" },
+    "design":       { "type": "object" },
+    "vibe_test": {
+      "type": "object",
+      "required": ["enabled"],
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" }
+      }
+    },
+    "context7": {
+      "type": "object",
+      "required": ["enabled"],
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" }
+      }
+    },
+    "accessibility": {
+      "type": "object",
+      "required": ["level"],
+      "additionalProperties": false,
+      "properties": {
+        "level": { "type": "string", "enum": ["none", "wcag_aa", "wcag_aaa"] }
+      }
+    },
+    "git": {
+      "type": "object",
+      "required": ["default_branch", "branch_pattern", "commit_style", "squash_merge"],
+      "additionalProperties": false,
+      "properties": {
+        "default_branch": { "type": "string" },
+        "branch_pattern": { "type": "string" },
+        "commit_style":   { "type": "string", "enum": ["conventional"] },
+        "squash_merge":   { "type": "boolean" },
+        "use_worktrees":  { "type": "boolean" }
+      }
+    },
+    "models": {
+      "type": "object",
+      "required": ["planning", "execution", "governance"],
+      "additionalProperties": false,
+      "properties": {
+        "planning":   { "type": "string" },
+        "execution":  { "type": "string" },
+        "governance": { "type": "string" },
+        "escalation": { "type": "string" }
+      }
+    },
+    "ports": {
+      "type": "object",
+      "required": ["dev"],
+      "additionalProperties": false,
+      "properties": {
+        "dev": {
+          "type": "object",
+          "required": ["base", "db", "pgbouncer", "redis", "minio", "minio_console", "mailhog_smtp", "mailhog_ui", "pgadmin", "app", "worker", "studio"],
+          "additionalProperties": false,
+          "properties": {
+            "base":           { "type": "integer", "minimum": 40000, "maximum": 49999 },
+            "db":             { "type": "integer" },
+            "pgbouncer":      { "type": "integer" },
+            "redis":          { "type": "integer" },
+            "minio":          { "type": "integer" },
+            "minio_console":  { "type": "integer" },
+            "mailhog_smtp":   { "type": "integer" },
+            "mailhog_ui":     { "type": "integer" },
+            "pgadmin":        { "type": "integer" },
+            "app":            { "type": "integer" },
+            "worker":         { "type": "integer" },
+            "studio":         { "type": "integer" }
+          }
+        }
+      }
+    }
+  }
+}
