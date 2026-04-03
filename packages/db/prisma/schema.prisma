@@ -1,0 +1,437 @@
+// Prisma Schema — Inventorize
+// Multi-tenant SaaS with shared schema + tenant_id + PostgreSQL RLS
+// All tenant-scoped models have tenantId (NOT NULL in multi mode)
+// Child/item tables include tenantId for uniform RLS policies
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ─── Enums ───────────────────────────────────────────────────
+
+enum UserRole {
+  super_admin
+  admin
+  warehouse_staff
+  purchasing_staff
+}
+
+enum TenantStatus {
+  active
+  suspended
+  trial
+}
+
+enum POStatus {
+  draft
+  ordered
+  partially_received
+  received
+  cancelled
+}
+
+enum SerialNumberStatus {
+  in_stock
+  issued
+  adjusted
+}
+
+enum MovementType {
+  stock_in
+  stock_out
+  adjustment
+}
+
+enum NotificationStatus {
+  sent
+  failed
+  retried
+}
+
+enum AdjustmentReason {
+  recount
+  damage
+  theft
+  correction
+  other
+}
+
+// ─── Platform-level models ───────────────────────────────────
+
+model Tenant {
+  id           String       @id @default(cuid())
+  name         String
+  slug         String       @unique
+  contactEmail String       @map("contact_email")
+  status       TenantStatus @default(active)
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+
+  users                     User[]
+  products                  Product[]
+  suppliers                 Supplier[]
+  purchaseOrders            PurchaseOrder[]
+  purchaseOrderItems        PurchaseOrderItem[]
+  stockIns                  StockIn[]
+  stockInItems              StockInItem[]
+  stockOuts                 StockOut[]
+  stockOutItems             StockOutItem[]
+  serialNumbers             SerialNumber[]
+  stockAdjustments          StockAdjustment[]
+  stockAdjustmentItems      StockAdjustmentItem[]
+  stockMovementLogs         StockMovementLog[]
+  auditLogs                 AuditLog[]
+  lowStockNotificationLogs  LowStockNotificationLog[]
+
+  @@map("tenants")
+}
+
+model User {
+  id             String    @id @default(cuid())
+  tenantId       String?   @map("tenant_id")
+  tenant         Tenant?   @relation(fields: [tenantId], references: [id])
+  name           String
+  email          String    @unique
+  hashedPassword String    @map("hashed_password")
+  role           UserRole
+  isActive       Boolean   @default(true) @map("is_active")
+  lastLoginAt    DateTime? @map("last_login_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  createdPurchaseOrders  PurchaseOrder[]       @relation("po_created_by")
+  receivedStockIns       StockIn[]             @relation("stock_in_received_by")
+  releasedStockOuts      StockOut[]            @relation("stock_out_released_by")
+  createdAdjustments     StockAdjustment[]     @relation("adjustment_created_by")
+  approvedAdjustments    StockAdjustment[]     @relation("adjustment_approved_by")
+  performedMovements     StockMovementLog[]    @relation("movement_performed_by")
+  actedAuditLogs         AuditLog[]            @relation("audit_actor")
+  lowStockNotifications  LowStockNotificationLog[]
+
+  @@index([tenantId])
+  @@index([email])
+  @@map("users")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@id([identifier, token])
+  @@map("verification_tokens")
+}
+
+// ─── Tenant-scoped models ────────────────────────────────────
+
+model Product {
+  id                    String   @id @default(cuid())
+  tenantId              String   @map("tenant_id")
+  tenant                Tenant   @relation(fields: [tenantId], references: [id])
+  productCode           String   @map("product_code")
+  barcodeValue          String   @map("barcode_value")
+  name                  String
+  category              String
+  unit                  String
+  supplierCost          Decimal  @map("supplier_cost") @db.Decimal(12, 2)
+  markupPercent         Decimal  @map("markup_percent") @db.Decimal(8, 2)
+  sellingPrice          Decimal  @map("selling_price") @db.Decimal(12, 2)
+  currentQuantity       Int      @default(0) @map("current_quantity")
+  lowStockThreshold     Int      @map("low_stock_threshold")
+  serialTrackingEnabled Boolean  @default(false) @map("serial_tracking_enabled")
+  isActive              Boolean  @default(true) @map("is_active")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  purchaseOrderItems        PurchaseOrderItem[]
+  stockInItems              StockInItem[]
+  stockOutItems             StockOutItem[]
+  serialNumbers             SerialNumber[]
+  stockAdjustmentItems      StockAdjustmentItem[]
+  stockMovementLogs         StockMovementLog[]
+  lowStockNotificationLogs  LowStockNotificationLog[]
+
+  @@unique([tenantId, productCode])
+  @@unique([tenantId, barcodeValue])
+  @@index([tenantId])
+  @@index([tenantId, category])
+  @@map("products")
+}
+
+model Supplier {
+  id            String   @id @default(cuid())
+  tenantId      String   @map("tenant_id")
+  tenant        Tenant   @relation(fields: [tenantId], references: [id])
+  name          String
+  contactPerson String?  @map("contact_person")
+  phone         String?
+  email         String?
+  address       String?
+  notes         String?
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  purchaseOrders PurchaseOrder[]
+
+  @@index([tenantId])
+  @@map("suppliers")
+}
+
+model PurchaseOrder {
+  id              String   @id @default(cuid())
+  tenantId        String   @map("tenant_id")
+  tenant          Tenant   @relation(fields: [tenantId], references: [id])
+  poNumber        String   @map("po_number")
+  supplierId      String   @map("supplier_id")
+  supplier        Supplier @relation(fields: [supplierId], references: [id])
+  orderDate       DateTime @map("order_date")
+  expectedDate    DateTime? @map("expected_date")
+  status          POStatus @default(draft)
+  notes           String?
+  attachmentUrl   String?  @map("attachment_url")
+  createdByUserId String   @map("created_by_user_id")
+  createdByUser   User     @relation("po_created_by", fields: [createdByUserId], references: [id])
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  items    PurchaseOrderItem[]
+  stockIns StockIn[]
+
+  @@unique([tenantId, poNumber])
+  @@index([tenantId])
+  @@index([supplierId])
+  @@index([tenantId, status])
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderItem {
+  id                   String  @id @default(cuid())
+  tenantId             String  @map("tenant_id")
+  tenant               Tenant  @relation(fields: [tenantId], references: [id])
+  purchaseOrderId      String  @map("purchase_order_id")
+  purchaseOrder        PurchaseOrder @relation(fields: [purchaseOrderId], references: [id])
+  productId            String  @map("product_id")
+  product              Product @relation(fields: [productId], references: [id])
+  orderedQty           Int     @map("ordered_qty")
+  receivedQty          Int     @default(0) @map("received_qty")
+  supplierCostSnapshot Decimal @map("supplier_cost_snapshot") @db.Decimal(12, 2)
+
+  @@index([purchaseOrderId])
+  @@index([productId])
+  @@index([tenantId])
+  @@map("purchase_order_items")
+}
+
+model StockIn {
+  id              String    @id @default(cuid())
+  tenantId        String    @map("tenant_id")
+  tenant          Tenant    @relation(fields: [tenantId], references: [id])
+  referenceNumber String    @map("reference_number")
+  purchaseOrderId String?   @map("purchase_order_id")
+  purchaseOrder   PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id])
+  receivedDate    DateTime  @map("received_date")
+  receivedByUserId String   @map("received_by_user_id")
+  receivedByUser  User      @relation("stock_in_received_by", fields: [receivedByUserId], references: [id])
+  notes           String?
+  attachmentUrl   String?   @map("attachment_url")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  items StockInItem[]
+
+  @@unique([tenantId, referenceNumber])
+  @@index([tenantId])
+  @@map("stock_ins")
+}
+
+model StockInItem {
+  id                   String  @id @default(cuid())
+  tenantId             String  @map("tenant_id")
+  tenant               Tenant  @relation(fields: [tenantId], references: [id])
+  stockInId            String  @map("stock_in_id")
+  stockIn              StockIn @relation(fields: [stockInId], references: [id])
+  productId            String  @map("product_id")
+  product              Product @relation(fields: [productId], references: [id])
+  quantity             Int
+  supplierCostSnapshot Decimal @map("supplier_cost_snapshot") @db.Decimal(12, 2)
+
+  serialNumbers SerialNumber[]
+
+  @@index([stockInId])
+  @@index([productId])
+  @@index([tenantId])
+  @@map("stock_in_items")
+}
+
+model StockOut {
+  id                 String   @id @default(cuid())
+  tenantId           String   @map("tenant_id")
+  tenant             Tenant   @relation(fields: [tenantId], references: [id])
+  referenceNumber    String   @map("reference_number")
+  releasedDate       DateTime @map("released_date")
+  releasedByUserId   String   @map("released_by_user_id")
+  releasedByUser     User     @relation("stock_out_released_by", fields: [releasedByUserId], references: [id])
+  requestedByName    String   @map("requested_by_name")
+  usedFor            String   @map("used_for")
+  notes              String?
+  printableSlipNumber String  @map("printable_slip_number")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  items StockOutItem[]
+
+  @@unique([tenantId, referenceNumber])
+  @@unique([tenantId, printableSlipNumber])
+  @@index([tenantId])
+  @@map("stock_outs")
+}
+
+model StockOutItem {
+  id                   String  @id @default(cuid())
+  tenantId             String  @map("tenant_id")
+  tenant               Tenant  @relation(fields: [tenantId], references: [id])
+  stockOutId           String  @map("stock_out_id")
+  stockOut             StockOut @relation(fields: [stockOutId], references: [id])
+  productId            String  @map("product_id")
+  product              Product @relation(fields: [productId], references: [id])
+  quantity             Int
+  sellingPriceSnapshot Decimal @map("selling_price_snapshot") @db.Decimal(12, 2)
+
+  serialNumbers SerialNumber[]
+
+  @@index([stockOutId])
+  @@index([productId])
+  @@index([tenantId])
+  @@map("stock_out_items")
+}
+
+model SerialNumber {
+  id             String             @id @default(cuid())
+  tenantId       String             @map("tenant_id")
+  tenant         Tenant             @relation(fields: [tenantId], references: [id])
+  productId      String             @map("product_id")
+  product        Product            @relation(fields: [productId], references: [id])
+  serialValue    String             @map("serial_value")
+  barcodeValue   String?            @map("barcode_value")
+  status         SerialNumberStatus @default(in_stock)
+  stockInItemId  String?            @map("stock_in_item_id")
+  stockInItem    StockInItem?       @relation(fields: [stockInItemId], references: [id])
+  stockOutItemId String?            @map("stock_out_item_id")
+  stockOutItem   StockOutItem?      @relation(fields: [stockOutItemId], references: [id])
+  createdAt      DateTime           @default(now()) @map("created_at")
+  updatedAt      DateTime           @updatedAt @map("updated_at")
+
+  stockAdjustmentItems StockAdjustmentItem[]
+  stockMovementLogs    StockMovementLog[]
+
+  @@unique([tenantId, productId, serialValue])
+  @@index([tenantId])
+  @@index([productId])
+  @@index([status])
+  @@map("serial_numbers")
+}
+
+model StockAdjustment {
+  id               String           @id @default(cuid())
+  tenantId         String           @map("tenant_id")
+  tenant           Tenant           @relation(fields: [tenantId], references: [id])
+  adjustmentDate   DateTime         @map("adjustment_date")
+  reason           AdjustmentReason
+  notes            String?
+  createdByUserId  String           @map("created_by_user_id")
+  createdByUser    User             @relation("adjustment_created_by", fields: [createdByUserId], references: [id])
+  approvedByUserId String?          @map("approved_by_user_id")
+  approvedByUser   User?            @relation("adjustment_approved_by", fields: [approvedByUserId], references: [id])
+  createdAt        DateTime         @default(now()) @map("created_at")
+
+  items StockAdjustmentItem[]
+
+  @@index([tenantId])
+  @@map("stock_adjustments")
+}
+
+model StockAdjustmentItem {
+  id                String           @id @default(cuid())
+  tenantId          String           @map("tenant_id")
+  tenant            Tenant           @relation(fields: [tenantId], references: [id])
+  stockAdjustmentId String           @map("stock_adjustment_id")
+  stockAdjustment   StockAdjustment  @relation(fields: [stockAdjustmentId], references: [id])
+  productId         String           @map("product_id")
+  product           Product          @relation(fields: [productId], references: [id])
+  quantityDelta     Int              @map("quantity_delta")
+  serialNumberId    String?          @map("serial_number_id")
+  serialNumber      SerialNumber?    @relation(fields: [serialNumberId], references: [id])
+
+  @@index([stockAdjustmentId])
+  @@index([productId])
+  @@index([tenantId])
+  @@map("stock_adjustment_items")
+}
+
+model StockMovementLog {
+  id                String       @id @default(cuid())
+  tenantId          String       @map("tenant_id")
+  tenant            Tenant       @relation(fields: [tenantId], references: [id])
+  productId         String       @map("product_id")
+  product           Product      @relation(fields: [productId], references: [id])
+  movementType      MovementType @map("movement_type")
+  referenceType     String       @map("reference_type")
+  referenceId       String       @map("reference_id")
+  quantityBefore    Int          @map("quantity_before")
+  quantityDelta     Int          @map("quantity_delta")
+  quantityAfter     Int          @map("quantity_after")
+  serialNumberId    String?      @map("serial_number_id")
+  serialNumber      SerialNumber? @relation(fields: [serialNumberId], references: [id])
+  performedByUserId String       @map("performed_by_user_id")
+  performedByUser   User         @relation("movement_performed_by", fields: [performedByUserId], references: [id])
+  requestedByName   String?      @map("requested_by_name")
+  usedFor           String?      @map("used_for")
+  performedAt       DateTime     @map("performed_at")
+  notes             String?
+
+  @@index([tenantId])
+  @@index([productId])
+  @@index([tenantId, referenceType, referenceId])
+  @@map("stock_movement_logs")
+}
+
+model AuditLog {
+  id               String   @id @default(cuid())
+  tenantId         String?  @map("tenant_id")
+  tenant           Tenant?  @relation(fields: [tenantId], references: [id])
+  actorUserId      String   @map("actor_user_id")
+  actorUser        User     @relation("audit_actor", fields: [actorUserId], references: [id])
+  actionType       String   @map("action_type")
+  entityType       String   @map("entity_type")
+  entityId         String   @map("entity_id")
+  fieldChangesJson Json?    @map("field_changes_json")
+  beforeStateJson  Json?    @map("before_state_json")
+  afterStateJson   Json?    @map("after_state_json")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  @@index([tenantId])
+  @@index([actorUserId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model LowStockNotificationLog {
+  id               String             @id @default(cuid())
+  tenantId         String             @map("tenant_id")
+  tenant           Tenant             @relation(fields: [tenantId], references: [id])
+  productId        String             @map("product_id")
+  product          Product            @relation(fields: [productId], references: [id])
+  notifiedToUserId String             @map("notified_to_user_id")
+  notifiedToUser   User               @relation(fields: [notifiedToUserId], references: [id])
+  sentAt           DateTime           @map("sent_at")
+  status           NotificationStatus
+
+  @@index([tenantId])
+  @@index([productId])
+  @@map("low_stock_notification_logs")
+}
