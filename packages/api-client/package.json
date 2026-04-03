@@ -1,0 +1,22 @@
+{
+  "name": "@inventorize/api-client",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "lint": "eslint src/",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@trpc/client": "^11.0.0",
+    "@trpc/server": "^11.0.0",
+    "@inventorize/shared": "workspace:*",
+    "superjson": "^2.2.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0"
+  }
+}

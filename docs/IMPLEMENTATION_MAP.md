@@ -33,9 +33,12 @@
 - [x] .eslintrc.js
 
 ### Part 2: packages/shared + packages/api-client
-- [ ] packages/shared/src/types/
-- [ ] packages/shared/src/schemas/
-- [ ] packages/api-client/
+- [x] packages/shared/package.json + tsconfig.json
+- [x] packages/shared/src/enums/index.ts (7 enums: UserRole, TenantStatus, POStatus, SerialNumberStatus, MovementType, NotificationStatus, AdjustmentReason)
+- [x] packages/shared/src/types/index.ts (17 entity interfaces + AppSession + Pagination)
+- [x] packages/shared/src/schemas/index.ts (Zod schemas: create/update/filter for all entities)
+- [x] packages/api-client/package.json + tsconfig.json
+- [x] packages/api-client/src/index.ts (typed tRPC client factory + re-exports)
 
 ### Part 3: packages/db (Prisma)
 - [ ] prisma/schema.prisma
