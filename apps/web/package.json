@@ -1,0 +1,43 @@
+{
+  "name": "@inventorize/web",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev --port ${APP_PORT:-44884}",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint src/ --ext .ts,.tsx",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@inventorize/shared": "workspace:*",
+    "@inventorize/db": "workspace:*",
+    "@inventorize/ui": "workspace:*",
+    "@inventorize/jobs": "workspace:*",
+    "@inventorize/storage": "workspace:*",
+    "@trpc/client": "^11.0.0-rc.648",
+    "@trpc/next": "^11.0.0-rc.648",
+    "@trpc/react-query": "^11.0.0-rc.648",
+    "@trpc/server": "^11.0.0-rc.648",
+    "@tanstack/react-query": "^5.60.0",
+    "next": "^15.1.0",
+    "next-auth": "^5.0.0-beta.25",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "zod": "^3.23.0",
+    "bcryptjs": "^2.4.3",
+    "isomorphic-dompurify": "^2.16.0",
+    "lru-cache": "^11.0.0",
+    "superjson": "^2.2.0"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.7.0"
+  }
+}

@@ -84,3 +84,13 @@
 - Schema/migrations:   none
 - Errors encountered:  none
 - Errors resolved:     none
+
+## 2026-04-03 — Phase 4 Part 5: Next.js Web App Scaffold
+- Agent:               CLAUDE_CODE
+- Why:                 Scaffold full Next.js 15 App Router web app with tRPC, Auth.js v5, multi-tenant routing
+- Files added:         apps/web/ (package.json, tsconfig.json, next.config.ts, Dockerfile, .dockerignore, postcss.config.js, tailwind.config.ts, src/env.ts, src/middleware.ts, src/server/auth/index.ts, src/server/trpc/context.ts, src/server/trpc/trpc.ts, src/server/trpc/router.ts, src/server/lib/rate-limit.ts, src/server/lib/sanitize.ts, src/server/trpc/middleware/rbac.ts, src/server/trpc/routers/ (9 tenant-scoped + 1 platform), src/app/ (layout, login, health, 8 tenant-scoped pages), src/components/providers.tsx, src/lib/trpc.ts)
+- Files modified:      pnpm-lock.yaml
+- Files deleted:       none
+- Schema/migrations:   none
+- Errors encountered:  ~80 TypeScript errors (tRPC middleware type narrowing, Auth.js session cast, Prisma enum case, exactOptionalPropertyTypes, TS2742 declaration emit); 16 ESLint errors; 7 typecheck regressions from lint fix
+- Errors resolved:     Non-null assertions with eslint-disable for tRPC ctx narrowing gap; unknown intermediate casts for Auth.js; lowercase enum values; explicit field construction for updates; declaration:false in tsconfig; eslint-disable + ! pattern for ESLint/tsc disagreement
