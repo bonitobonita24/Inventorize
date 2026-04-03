@@ -32,5 +32,5 @@ CREDENTIALS.md
 .vscode/settings.json
 !.vscode/tasks.json
 
-# Git
-.cline/STATE.md
+# Skills — installed packs may have their own node_modules
+.github/skills/**/node_modules/

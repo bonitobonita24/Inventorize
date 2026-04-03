@@ -2,16 +2,35 @@
   "name": "inventorize",
   "version": "0.0.1",
   "private": true,
+  "packageManager": "pnpm@10.18.0",
+  "engines": {
+    "node": ">=22",
+    "pnpm": ">=10"
+  },
   "scripts": {
-    "dev": "echo 'Run Phase 4 first'",
-    "build": "echo 'Run Phase 4 first'",
-    "lint": "echo 'Run Phase 4 first'",
-    "typecheck": "echo 'Run Phase 4 first'",
-    "db:generate": "echo 'Run Phase 4 first'",
-    "db:migrate": "echo 'Run Phase 4 first'",
-    "db:seed": "echo 'Run Phase 4 first'"
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "typecheck": "turbo typecheck",
+    "test": "turbo test",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,yaml,yml}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,yaml,yml}\"",
+    "clean": "turbo clean",
+    "db:generate": "turbo db:generate",
+    "db:migrate": "turbo db:migrate",
+    "db:seed": "turbo db:seed",
+    "tools:validate-inputs": "node tools/validate-inputs.mjs",
+    "tools:check-env": "node tools/check-env.mjs",
+    "tools:check-product-sync": "node tools/check-product-sync.mjs",
+    "tools:hydration-lint": "node tools/hydration-lint.mjs"
   },
   "devDependencies": {
-    "pnpm": "9.12.0"
+    "turbo": "^2.4.0",
+    "typescript": "^5.7.0",
+    "eslint": "^8.57.0",
+    "@typescript-eslint/parser": "^7.18.0",
+    "@typescript-eslint/eslint-plugin": "^7.18.0",
+    "eslint-config-prettier": "^9.1.0",
+    "prettier": "^3.4.0"
   }
 }
