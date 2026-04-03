@@ -7629,3 +7629,2621 @@ _**Agent (claude-opus-4-6 2026-04-03 05:50:31Z)**_
 - `scaffold/part-1` branch squash-merged and deleted
 
 **Next:** Phase 4 Part 2 — `packages/shared` + `packages/api-client`. Open a new session and say "Start Part 2".
+
+---
+
+_**User (2026-04-03 06:02:22Z)**_
+
+Start Part 2
+
+---
+
+_**Agent (claude-opus-4-6 2026-04-03 06:02:26Z)**_
+
+_**Agent (claude-opus-4-6 2026-04-03 06:02:27Z)**_
+
+Let me explore what's needed for Part 2.
+
+_**Agent (claude-opus-4-6 2026-04-03 06:05:07Z)**_
+
+<tool-use data-tool-type="unknown" data-tool-name="Agent"><details>
+<summary>Tool use: **Agent**</summary>
+Explore PRODUCT.md entities for Part 2
+
+```text
+Perfect. I now have both files completely read. Let me provide a comprehensive report with all the detail you requested.
+
+---
+
+## COMPREHENSIVE ENTITY MODEL & API STRUCTURE REPORT
+
+### 1. ENTITIES WITH COMPLETE FIELD DEFINITIONS
+
+#### **Platform-Level Entities (No tenantId)**
+
+**Tenant**
+- `id`: UUID (primary key)
+- `name`: string (required)
+- `slug`: string (unique, auto-generated from name, editable with real-time uniqueness validation)
+- `contactEmail`: string (required)
+- `status`: enum `active | suspended | trial` (default: trial)
+- `createdAt`: DateTime
+- `updatedAt`: DateTime
+- **Relationships**: 1:N to User (inverse), 1:N to all tenant-scoped entities
+
+**User**
+- `id`: UUID (primary key)
+- `tenantId`: UUID | null (null only for super_admin, otherwise required FK to Tenant)
+- `name`: string (required)
+- `email`: string (required, unique per tenant when tenantId is not null)
+- `hashedPassword`: string (hashed via Auth.js v5 — never plain text)
+- `role`: enum `super_admin | admin | warehouse_staff | purchasing_staff` (required)
+- `isActive`: boolean (users disabled, never hard-deleted)
+- `lastLoginAt`: DateTime | null
+- `createdAt`: DateTime
+- `updatedAt`: DateTime
+- **Relationships**: N:1 to Tenant (optional), 1:N to AuditLog (as actorUserId), 1:N to StockIn (as receivedByUserId), 1:N to StockOut (as releasedByUserId), 1:N to StockAdjustment (as createdByUserId or approvedByUserId), 1:N to StockMovementLog (as performedByUserId), 1:N to PurchaseOrder (as createdByUserId), 1:N to LowStockNotificationLog (as notifiedToUserId)
+
+**VerificationToken** (Auth.js v5 schema — for setup links)
+- `identifier`: string (user email — primary key part 1)
+- `token`: string (hashed — primary key part 2)
+- `expires`: DateTime (24-hour expiry from creation)
+- **Usage**: One-time setup link for new tenant admins. Invalid after first use or after 24h, whichever comes first. Token is consumed immediately upon use. Stored hashed in DB.
+
+---
+
+#### **Tenant-Scoped Entities (All have tenantId, enforced by RLS)**
+
+**Product**
+- `id`: UUID (primary key)
+- `tenantId`: UUID (required FK to Tenant, indexed)
+- `productCode`: string (required, unique per tenant with tenantId composite)
+- `barcodeValue`: string (required, unique per tenant with tenantId composite)
+- `name`: string (required)
+- `category`: string (required)
+- `unit`: string (required — e.g., "piece", "box", "kg")
+- `supplierCost`: decimal (required, >= 0)
+- `markupPercent`: decimal (required, >= 0)
+- `sellingPrice`: decimal (computed: `supplierCost + (supplierCost * markupPercent / 100)`, system-managed, never directly edited)
+- `currentQuantity`: integer (system-managed only, never directly editable, default 0, never negative)
+- `lowStockThreshold`: integer (required, >= 0)
+- `serialTrackingEnabled`: boolean (default false)
+- `isActive`: boolean (default true)
+- `createdAt`: DateTime
+- `updatedAt`: DateTime
+- **Relationships**: 1:N to SerialNumber, 1:N to StockInItem, 1:N to StockOutItem, 1:N to StockAdjustmentItem, 1:N to StockMovementLog, 1:N to LowStockNotificationLog, N:N to PurchaseOrder (via PurchaseOrderItem)
+- **Validation Rules**: productCode and barcodeValue uniqueness checked at DB + app layer before save; sellingPrice auto-computed before save; currentQuantity protected from direct assignment; lowStockThreshold >= 0
+
+**Supplier**
+- `id`: UUID (primary key)
+- `tenantId`: UUID (required FK to Tenant, indexed)
+- `name`: string (required)
+- `contactPerson`: string (optional)
+- `phone`: string (optional)
+- `email`: string (optional)
+- `address`: string (optional)
+- `notes`: string (optional)
+- `isActive`: boolean (default true)
+- `createdAt`: DateTime
+- `updatedAt`: DateTime
+- **Relationships**: 1:N to PurchaseOrder
+
+**PurchaseOrder**
+- `id`: UUID (primary key)
+- `tenantId`: UUID (required FK to Tenant, indexed)
+- `poNumber`: string (required, unique per tenant with tenantId composite)
+- `supplierId`: UUID (required FK to Supplier, indexed)
+- `orderDate`: DateTime (required)
+- `expectedDate`: DateTime (required)
+- `status`: enum `draft | ordered | partially_received | received | cancelled` (default: draft)
+- `notes`: string (optional)
+- `attachmentUrl`: string (optional, S3/MinIO path)
+- `createdByUserId`: UUID (required FK to User, indexed)
+- `createdAt`: DateTime
+- `updatedAt`: DateTime
+- **Relationships**: 1:N to PurchaseOrderItem, N:1 to Supplier, N:1 to User (createdBy), 0:N to StockIn (optional FK)
+- **Validation Rules**: poNumber uniqueness per tenant; must have at least 1 PurchaseOrderItem before save; status transitions validated (draft → ordered → partially_received → received or cancelled from any state)
+
+**PurchaseOrderItem**
+- `id`: UUID (primary key)
+- `purchaseOrderId`: UUID (required FK to PurchaseOrder, indexed)
+- `productId`: UUID (required FK to Product, indexed)
+- `orderedQty`: integer (required, > 0)
+- `receivedQty`: integer (default 0, updated as StockIn items link to this PO)
+- `supplierCostSnapshot`: decimal (required, snapshot of Product.supplierCost at PO creation time, immutable)
+- **Relationships**: N:1 to PurchaseOrder, N:1 to Product
+
+**StockIn**
+- `id`: UUID (primary key)
+- `tenantId`: UUID (required FK to Tenant, indexed)
+- `referenceNumber`: string (required, unique per tenant with tenantId composite, auto-generated or user-provided)
+- `purchaseOrderId`: UUID (optional FK to PurchaseOrder, indexed)
+- `receivedDate`: DateTime (required)
+- `receivedByUserId`: UUID (required FK to User, indexed)
+- `notes`: string (optional)
+- `attachmentUrl`: string (optional, delivery receipt file)
+- `createdAt`: DateTime
+- **Relationships**: 1:N to StockInItem, 0:1 to PurchaseOrder, N:1 to User
+
+**StockInItem**
+- `id`: UUID (primary key)
+- `stockInId`: UUID (required FK to StockIn, indexed)
+- `productId`: UUID (required FK to Product, indexed)
+- `quantity`: integer (required, > 0)
+- `supplierCostSnapshot`: decimal (required, snapshot at receipt time)
+- **Relationships**: N:1 to StockIn, N:1 to Product, 1:N to SerialNumber (if serialTrackingEnabled)
+- **Trigger**: Links SerialNumber records to this StockInItem when received
+
+**StockOut**
+- `id`: UUID (primary key)
+- `tenantId`: UUID (required FK to Tenant, indexed)
+- `referenceNumber`: string (required, unique per tenant with tenantId composite)
+- `releasedDate`: DateTime (required)
+- `releasedByUserId`: UUID (required FK to User, indexed)
+- `requestedByName`: string (required, who requested the stock release)
+- `usedFor`: string (required, purpose/project code)
+- `notes`: string (optional)
+- `printableSlipNumber`: string (immutable, format SO-XXXXX, auto-generated, unique per tenant, never reset, counter always increases)
+- `createdAt`: DateTime
+- **Relationships**: 1:N to StockOutItem, N:1 to User
+- **Validation Rules**: At least 1 StockOutItem required; printableSlipNumber auto-generated at creation using per-tenant counter stored in system config or separate table
+- **Key Rule**: printableSlipNumber is immutable and formatted as 'SO-' + zero-padded 5-digit sequential number per tenant (e.g., SO-00001, SO-00002). Counter never resets, numbers always increase. Unique per tenant.
+
+**StockOutItem**
+- `id`: UUID (primary key)
+- `stockOutId`: UUID (required FK to StockOut, indexed)
+- `productId`: UUID (required FK to Product, indexed)
+- `quantity`: integer (required, > 0, must be <= available in_stock serials if serialTrackingEnabled)
+- `sellingPriceSnapshot`: decimal (required, snapshot at release time)
+- **Relationships**: N:1 to StockOut, N:1 to Product, 1:N to SerialNumber (if serialTrackingEnabled)
+
+**SerialNumber**
+- `id`: UUID (primary key)
+- `tenantId`: UUID (required FK to Tenant, indexed)
+- `productId`: UUID (required FK to Product, indexed)
+- `serialValue`: string (required, the actual serial/asset tag)
+- `barcodeValue`: string (optional, barcode specific to this serial)
+- `status`: enum `in_stock | issued | adjusted` (default: in_stock)
+- `stockInItemId`: UUID (optional FK to StockInItem, indexed, set when received)
+- `stockOutItemId`: UUID (optional FK to StockOutItem, indexed, set when issued)
+- `createdAt`: DateTime
+- `updatedAt`: DateTime
+- **Relationships**: N:1 to Product, N:1 to StockInItem (optional), N:1 to StockOutItem (optional), N:1 to StockAdjustmentItem (implicit via backref)
+- **Unique Constraint**: [tenantId, productId, serialValue] composite unique
+- **Validation Rules**: serialValue must be unique per product per tenant; duplicate check runs before save; status transitions: in_stock → issued or adjusted; cannot re-issue an issued serial; immutable once issued
+
+**StockAdjustment**
+- `id`: UUID (primary key)
+- `tenantId`: UUID (required FK to Tenant, indexed)
+- `adjustmentDate`: DateTime (required)
+- `reason`: string (required, enum or free-text: "recount", "damage", "theft", "correction", "other")
+- `notes`: string (optional, detailed explanation)
+- `createdByUserId`: UUID (required FK to User, indexed)
+- `approvedByUserId`: UUID (optional FK to User, indexed, audit trail only — not blocking)
+- `createdAt`: DateTime
+- **Relationships**: 1:N to StockAdjustmentItem, N:1 to User (createdBy, approvedBy)
+- **Validation Rules**: At least 1 StockAdjustmentItem required; reason required; adjustment may not result in negative stock for any product
+
+**StockAdjustmentItem**
+- `id`: UUID (primary key)
+- `stockAdjustmentId`: UUID (required FK to StockAdjustment, indexed)
+- `productId`: UUID (required FK to Product, indexed)
+- `quantityDelta`: integer (required, can be positive or negative, cannot result in negative Product.currentQuantity)
+- `serialNumberId`: UUID (optional FK to SerialNumber, indexed, for serial-tracked items)
+- **Relationships**: N:1 to StockAdjustment, N:1 to Product, 0:1 to SerialNumber
+- **Validation Rules**: Resulting stock after delta must be >= 0; if product is serialTrackingEnabled, serialNumberId must be provided and match product; delta validation at transaction level
+
+**StockMovementLog** (IMMUTABLE)
+- `id`: UUID (primary key)
+- `tenantId`: UUID (required FK to Tenant, indexed)
+- `productId`: UUID (required FK to Product, indexed)
+- `movementType`: enum `stock_in | stock_out | adjustment` (required)
+- `referenceType`: string (required, e.g., "StockIn", "StockOut", "StockAdjustment")
+- `referenceId`: UUID (required, ID of StockIn/Out/Adjustment record)
+- `quantityBefore`: integer (required, currentQuantity before movement)
+- `quantityDelta`: integer (required, amount added/removed)
+- `quantityAfter`: integer (required, currentQuantity after movement)
+- `serialNumberId`: UUID (optional FK to SerialNumber, indexed, for tracking individual serials)
+- `performedByUserId`: UUID (required FK to User, indexed)
+- `requestedByName`: string (optional, from StockOut or adjustment)
+- `usedFor`: string (optional, from StockOut)
+- `performedAt`: DateTime (required, when the movement occurred)
+- `notes`: string (optional)
+- `createdAt`: DateTime (locked — matches performedAt)
+- **No Update/Delete**: All fields immutable after creation
+- **Relationships**: N:1 to Product, N:1 to User, 0:1 to SerialNumber
+- **Trigger**: Created automatically on every stock movement (stock in, stock out, adjustment)
+
+**AuditLog** (IMMUTABLE)
+- `id`: UUID (primary key)
+- `tenantId`: UUID (optional FK to Tenant, indexed, null for platform-level super_admin actions)
+- `actorUserId`: UUID (required FK to User, indexed, the user who performed the action)
+- `actionType`: enum | string (required, e.g., "CREATE", "UPDATE", "DELETE", "SUSPEND_TENANT", "IMPERSONATE_START", "IMPERSONATE_END", "LOGIN", "EXPORT")
+- `entityType`: string (required, e.g., "Product", "User", "PurchaseOrder", "StockIn", "Tenant")
+- `entityId`: UUID (required, ID of the entity being acted upon)
+- `fieldChangesJson`: JSON (optional, object of field diffs for UPDATE actions: {fieldName: {before: value, after: value}})
+- `beforeStateJson`: JSON (optional, full entity state before UPDATE)
+- `afterStateJson`: JSON (optional, full entity state after UPDATE)
+- `createdAt`: DateTime
+- **No Update/Delete**: All fields immutable after creation
+- **Relationships**: N:1 to Tenant (optional), N:1 to User
+- **Created By**: Every important action: tenant create/suspend/reactivate, user create/update/role-change/disable, login, product create/update/pricing/threshold, supplier create/update, PO create/status-change, stock in, stock out, adjustment, serial creation/status-change, file upload/removal, report export, impersonation start/end, every quantity-affecting movement
+- **Logging Pattern**: All mutations + important queries + auth events
+
+**LowStockNotificationLog**
+- `id`: UUID (primary key)
+- `tenantId`: UUID (required FK to Tenant, indexed)
+- `productId`: UUID (required FK to Product, indexed)
+- `notifiedToUserId`: UUID (required FK to User, indexed)
+- `sentAt`: DateTime (required, when notification was sent)
+- `status`: enum `sent | failed | retried` (default: sent)
+- **Relationships**: N:1 to Tenant, N:1 to Product, N:1 to User
+
+---
+
+### 2. ENUMS & UNION TYPES
+
+**User Roles** (global, same set across all tenants)
+- `super_admin`: Platform operator, manages tenants, impersonates admins
+- `admin`: Tenant admin, manages users, products, suppliers, POs, stock, adjustments, audit logs, reports
+- `warehouse_staff`: Warehouse worker, scans/logs stock in/out, views product info (no pricing), views stock movement logs, views reports
+- `purchasing_staff`: Procurement specialist, manages suppliers, POs, stock in (read-only stock out), views all pricing, views reports
+
+**Tenant Status**
+- `active`: Tenant operational
+- `suspended`: Tenant temporarily offline (prevents all user operations)
+- `trial`: Initial state for new tenants
+
+**Product Unit** (suggested values, extensible)
+- "piece", "box", "pallet", "kg", "liter", "meter", "hour", etc. (free-text field)
+
+**Adjustment Reason** (suggested enum or free-text)
+- `recount`: Physical inventory recount correction
+- `damage`: Stock damaged or spoiled
+- `theft`: Missing inventory
+- `correction`: System correction
+- `other`: Other reason with notes
+
+**PurchaseOrder Status**
+- `draft`: Being created, not yet submitted
+- `ordered`: Submitted to supplier
+- `partially_received`: Some items received
+- `received`: All items received
+- `cancelled`: PO cancelled (can be cancelled from any state)
+
+**SerialNumber Status**
+- `in_stock`: Serial is physically available
+- `issued`: Serial was released to warehouse staff (stock out)
+- `adjusted`: Serial was involved in adjustment (status change, moved to different location, etc.)
+
+**StockMovement Type**
+- `stock_in`: Incoming stock (receiving/purchase)
+- `stock_out`: Outgoing stock (issued to warehouse)
+- `adjustment`: Inventory correction
+
+**LowStockNotification Status**
+- `sent`: Email notification sent successfully
+- `failed`: Email send attempt failed
+- `retried`: Retried after initial failure
+
+---
+
+### 3. USER ROLES & PERMISSIONS MATRIX
+
+| Role | Scope | Can Do | Cannot Do |
+|------|-------|--------|-----------|
+| **super_admin** | Platform-wide | Create tenants, suspend/reactivate tenants, view cross-tenant metrics, impersonate tenant admins (read-only), create first admin user for new tenant, view platform audit logs | Cannot see tenant business data (products, stock, POs), cannot edit products/stock, cannot hard-delete tenants, cannot access /[tenant-slug]/* routes |
+| **admin** | Tenant-scoped | Create/update/disable users, create/edit products, view/edit all pricing, manage suppliers, manage POs, create stock in/out/adjustments, view audit logs (own tenant), view/export reports, assign roles to users | Cannot see other tenants, cannot manage platform, cannot hard-delete users/products, cannot directly edit currentQuantity, cannot see platform audit logs |
+| **warehouse_staff** | Tenant-scoped | View products (selling price only, no supplier cost/markup), create stock in, create stock out, view stock movement logs, view/export reports, scan barcodes | Cannot view supplier cost or markup, cannot manage users/suppliers/POs/adjustments, cannot view audit logs, cannot see pricing details, cannot access adjustments or supplier modules |
+| **purchasing_staff** | Tenant-scoped | View products with full pricing, manage suppliers, manage POs, create stock in, view stock out (read-only, cannot create), view stock movement logs, view/export reports | Cannot create stock out, cannot manage users or adjustments, cannot view audit logs, cannot see other tenants |
+
+**Key Rules:**
+- Impersonation when `session.isImpersonating = true`: All mutations return FORBIDDEN (server-side middleware), UI disables all action buttons/forms, banner shown at top
+- Role-based tRPC middleware enforces access to all procedures
+- Tenant isolation: Users cannot query/modify other tenants' data (enforced at L1: session tenantId, L2: Prisma middleware, L3: RLS)
+
+---
+
+### 4. TRPC API STRUCTURE (Routers & Procedures)
+
+```
+trpc
+├── auth
+│   ├── login (POST, public)
+│   ├── logout (POST)
+│   ├── setupAccount (POST, public, requires valid setup token)
+│   ├── resetPassword (POST)
+│   └── getCurrentSession (GET)
+│
+├── platform (super_admin only)
+│   ├── tenants
+│   │   ├── list (GET, filter by status, search by name/slug)
+│   │   ├── create (POST, slug uniqueness check required)
+│   │   ├── get (GET, by id)
+│   │   ├── suspend (POST, id)
+│   │   ├── reactivate (POST, id)
+│   │   ├── createFirstAdminUser (POST, tenantId, name, email)
+│   │   └── metrics (GET, returns KPIs across all tenants)
+│   │
+│   ├── audit-logs
+│   │   ├── list (GET, filter by action, entity, user, date)
+│   │   ├── get (GET, by id)
+│   │   └── export (GET, returns CSV stream)
+│   │
+│   └── impersonation
+│       ├── start (POST, tenantId, startImpersonation flag to session)
+│       └── end (POST, clearImpersonating flag from session)
+│
+├── tenant (all tenant-scoped routes require tenantId from session)
+│   ├── products
+│   │   ├── list (GET, search, filter, sort, pagination)
+│   │   ├── create (POST, admin only, auto-calc sellingPrice)
+│   │   ├── update (POST, admin only, recalc sellingPrice if pricing changed)
+│   │   ├── get (GET, by id)
+│   │   ├── delete (POST, soft disable via isActive flag, admin only)
+│   │   ├── getLowStock (GET, returns products where currentQuantity <= lowStockThreshold)
+│   │   └── validateProductCode (GET, real-time uniqueness check for slug input)
+│   │
+│   ├── suppliers
+│   │   ├── list (GET, admin + purchasing_staff, search, filter)
+│   │   ├── create (POST, admin + purchasing_staff)
+│   │   ├── update (POST, admin + purchasing_staff)
+│   │   ├── get (GET, admin + purchasing_staff)
+│   │   └── delete (POST, soft disable, admin only)
+│   │
+│   ├── purchase-orders
+│   │   ├── list (GET, admin + purchasing_staff, filter by status)
+│   │   ├── create (POST, admin + purchasing_staff, attachment optional)
+│   │   ├── update (POST, admin + purchasing_staff)
+│   │   ├── get (GET, admin + purchasing_staff)
+│   │   ├── updateStatus (POST, admin + purchasing_staff)
+│   │   └── lineItems
+│   │       ├── list (GET, by PO id)
+│   │       └── add (POST, productId, quantity)
+│   │
+│   ├── stock-in
+│   │   ├── list (GET, all roles, filter by date, product, user)
+│   │   ├── create (POST, all roles, validates quantities, links serials)
+│   │   ├── get (GET, all roles)
+│   │   ├── validateBarcode (GET, real-time barcode lookup)
+│   │   └── linkToPurchaseOrder (POST, optional PO association)
+│   │
+│   ├── stock-out
+│   │   ├── list (GET, all roles, filter)
+│   │   ├── create (POST, all roles, validates stock + serials)
+│   │   ├── get (GET, all roles)
+│   │   ├── getPrintableSlip (GET, returns formattable PDF/HTML)
+│   │   ├── validateBarcode (GET, real-time barcode lookup)
+│   │   ├── getAvailableSerials (GET, productId, returns in_stock serials only)
+│   │   └── validateQuantity (GET, productId, quantity, checks available stock)
+│   │
+│   ├── adjustments
+│   │   ├── list (GET, admin only, filter by reason, date)
+│   │   ├── create (POST, admin only, validates serials + resulting stock)
+│   │   ├── get (GET, admin only)
+│   │   └── approveAdjustment (POST, admin only, optional — audit trail, not blocking)
+│   │
+│   ├── stock-movement-logs
+│   │   ├── list (GET, all roles, filter by date, product, type, user)
+│   │   ├── get (GET, all roles, by id)
+│   │   └── export (GET, CSV stream)
+│   │
+│   ├── audit-logs
+│   │   ├── list (GET, admin only, filter by action, entity, user, date)
+│   │   ├── get (GET, admin only, by id)
+│   │   └── export (GET, admin only, CSV stream)
+│   │
+│   ├── dashboard
+│   │   ├── getKPIs (GET, all roles, period: today|this_week|this_month|custom, returns summary cards)
+│   │   ├── getStockChart (GET, all roles, period, returns bar chart data)
+│   │   ├── getLowStockAlert (GET, all roles, returns banner alert if any products below threshold)
+│   │   └── getInventoryValue (GET, admin + purchasing_staff only, returns total value calculation)
+│   │
+│   ├── reports
+│   │   ├── getLowStockReport (GET, all roles, returns filtered product list)
+│   │   ├── getStockMovementReport (GET, all roles, filter by date, product, type, user)
+│   │   ├── getCurrentInventoryReport (GET, all roles)
+│   │   ├── getProductHistoryReport (GET, all roles, productId)
+│   │   ├── getAuditTrailReport (GET, admin only)
+│   │   └── exportToCSV (GET, all roles, entityType, filters, returns CSV stream)
+│   │
+│   ├── users
+│   │   ├── list (GET, admin only, shows tenant users only)
+│   │   ├── create (POST, admin only, generates setup token)
+│   │   ├── update (POST, admin only)
+│   │   ├── get (GET, admin only)
+│   │   ├── disable (POST, admin only, soft delete via isActive flag)
+│   │   ├── resetPassword (POST, admin only, generates reset token)
+│   │   └── changeRole (POST, admin only)
+│   │
+│   ├── serials (if product.serialTrackingEnabled)
+│   │   ├── list (GET, by productId)
+│   │   ├── get (GET, by id)
+│   │   └── validateSerial (GET, productId, serialValue, checks uniqueness)
+│   │
+│   └── files
+│       ├── upload (POST, attachment upload, rate-limited to 10/min)
+│       └── getSignedUrl (GET, retrieve file URL for viewing/download)
+```
+
+**Middleware Stacks:**
+- All `/tenant/*` procedures: `requireAuth -> tenantIsolation -> roleBasedAccess`
+- All mutations when `session.isImpersonating = true`: Return FORBIDDEN before execution
+- All procedures: `rateLimiter` middleware (60/min public, 300/min auth, 10/min upload)
+
+---
+
+### 5. AUTH SESSION FIELDS (Auth.js v5)
+
+```typescript
+Session {
+  userId: UUID;
+  tenantId: UUID | null;           // null for super_admin, required for tenant users
+  roles: string[];                  // array: ["admin"] or ["warehouse_staff"] etc
+  name: string;
+  email: string;
+  isImpersonating: boolean;         // true when super_admin is viewing as tenant admin
+  impersonatedTenantId?: UUID;      // tenant being impersonated (when isImpersonating = true)
+  impersonatedTenantName?: string;  // for display in banner
+  // Implicit from Auth.js:
+  // - sessionToken (secure, httpOnly, signed)
+  // - expires (session expiry timestamp)
+  // - createdAt (session creation time)
+}
+```
+
+**Storage**: PostgreSQL table `sessions` (Auth.js v5 default schema), rows never hard-deleted, marked inactive instead
+
+---
+
+### 6. ZOD VALIDATION RULES MENTIONED
+
+From PRODUCT.md and inputs.yml:
+
+**Tenant**
+- `name`: required string, min 1 char, max 100 chars
+- `slug`: required string, lowercase, hyphens only (no spaces/special chars), unique (real-time validation), min 3 chars, max 50 chars, editable with inline error message: "This slug is already taken — please choose another"
+- `contactEmail`: required email format
+
+**Product**
+- `productCode`: required string, unique per tenant, min 1 char, max 50 chars
+- `barcodeValue`: required string, unique per tenant, min 1 char, max 100 chars
+- `name`: required string, min 1 char, max 200 chars
+- `category`: required string
+- `unit`: required string
+- `supplierCost`: required decimal >= 0
+- `markupPercent`: required decimal >= 0
+- `lowStockThreshold`: required integer >= 0
+- `serialTrackingEnabled`: boolean, default false
+
+**SerialNumber**
+- `serialValue`: required string, unique [tenantId, productId, serialValue], min 1 char, max 100 chars
+- Duplicate check runs before save with error: "This serial is already registered for this product"
+
+**User**
+- `email`: required, valid email format, unique per tenant (when tenantId not null)
+- `name`: required string, min 1 char, max 100 chars
+- `password`: required (on setup), min 8 chars, complexity rules TBD (suggest: 1 uppercase, 1 digit, 1 special char)
+
+**File Upload** (MinIO / S3)
+- `maxFileSize`: 10 MB
+- `allowedMimeTypes`: ["application/pdf", "image/jpeg", "image/png"]
+- `rateLimit`: 10 files per minute per user
+
+**PurchaseOrder**
+- `poNumber`: required string, unique per tenant, min 1 char, max 50 chars
+- Must have at least 1 PurchaseOrderItem before save
+
+**StockIn / StockOut / Adjustment**
+- `referenceNumber`: required string, unique per tenant
+- `quantity`: required integer > 0
+- `requestedByName`: required string (StockOut), min 1 char, max 100 chars
+- `usedFor`: required string (StockOut), min 1 char, max 200 chars
+- `reason`: required enum or string (Adjustment)
+- Must have at least 1 line item before save
+
+**Rate Limiting** (inputs.yml)
+- Public endpoints: 60 requests/min per IP
+- Authenticated endpoints: 300 requests/min per user
+- File upload: 10 uploads/min per user
+
+---
+
+### 7. TENANCY MODEL DETAILS
+
+**Mode**: Multi-tenant (multiple isolated companies)
+
+**Routing**: Subdirectory-based
+- URL pattern: `app.com/[tenant-slug]/dashboard`, `app.com/[tenant-slug]/products`, etc.
+- Slug is permanent after creation (cannot be changed)
+- Slug generation: auto-generated from tenant name, editable with real-time uniqueness check
+- URL preview shown during creation: "inventorize.powerbyte.app/[slug]/dashboard"
+
+**Database Isolation**:
+- Shared schema + `tenantId` column on all tenant-scoped tables (Layer 2)
+- PostgreSQL RLS policies enforce row-level access (Layer 3, defense-in-depth)
+- All queries automatically filtered by tenantId via Prisma middleware (Layer 1)
+- No separate database per tenant, no schema isolation needed
+
+**Tenant-Scoped Data**:
+- All business data (products, suppliers, POs, stock movements, adjustments, serials, audit logs, notifications)
+- User roles are global (same set across all tenants: admin, warehouse_staff, purchasing_staff)
+- Each user assigned to 1 tenant (via tenantId FK)
+- super_admin has no tenantId (platform operator, never views tenant data directly)
+
+**Shared Global Data**: None
+- No cross-tenant shared data
+- All reports, exports, dashboards are tenant-scoped
+
+**Tenant Lifecycle**:
+- Status: `active | suspended | trial`
+- Suspended tenants: all user operations blocked (users cannot login, mutations forbidden)
+- No hard deletion: suspended/inactive tenants kept 7 years minimum for audit
+- Suspension trigger: super_admin action, creates AuditLog entry at platform level
+
+**Slug Uniqueness**:
+- Enforced at database level (unique constraint on Tenant.slug)
+- Real-time validation API: `tenant.validateSlug(slug)` returns {available: boolean}
+- Form shows inline error if slug taken, save button blocked
+- Uniqueness check runs as super_admin types (debounced)
+
+---
+
+### 8. IMPERSONATION DETAILS
+
+**Trigger**: Super admin on platform, selects a tenant to "view as" (support/debugging mode)
+
+**Server-Side Enforcement**:
+- Session flag: `session.isImpersonating = true`
+- All tRPC mutations check this flag: if true, return FORBIDDEN immediately (before DB operation)
+- Platform AuditLog created for each impersonation start/end event with:
+  - `actionType`: "IMPERSONATE_START" or "IMPERSONATE_END"
+  - `tenantId`: impersonated tenant ID
+  - `actorUserId`: super_admin user ID
+  - `impersonatedTenantId`: the tenant being viewed
+
+**Client-Side Enforcement**:
+- Persistent banner at top of every page: "View Only — Impersonating [Tenant Name]"
+- All action buttons (create, edit, delete, export) disabled
+- All form submissions disabled
+- Read-only mode: users can view data but cannot modify anything
+
+**Page Visit Logging**:
+- Every page visited during impersonation creates AuditLog entry:
+  - `actionType`: "PAGE_VIEW"
+  - `entityType`: "Page"
+  - `entityId`: route path (e.g., "/products", "/stock-in")
+
+**Exit**:
+- Super admin clicks "Exit Impersonation" button
+- Session flag cleared: `session.isImpersonating = false`
+- Redirect back to /platform/tenants or /platform/metrics
+
+---
+
+### 9. KEY BUSINESS LOGIC RULES (CRITICAL)
+
+1. **Product.sellingPrice**: Always computed as `supplierCost + (supplierCost * markupPercent / 100)`. Never directly editable. Recalculated on each product save if supplierCost or markupPercent changed.
+
+2. **Product.currentQuantity**: System-managed only. Never directly editable via API or form. Only changes via stock in/out/adjustment transactions. Snapshot values (supplierCostSnapshot, sellingPriceSnapshot) stored on line items, not product pricing.
+
+3. **Stock Non-Negativity**: currentQuantity can never go negative. Any transaction that would result in negative stock is blocked with error and fully rolled back. Validated at DB transaction level + app layer.
+
+4. **Atomic Transactions**: All quantity-affecting operations (stock in, stock out, adjustment) are atomic:
+   - Update Product.currentQuantity
+   - Create StockMovementLog entry
+   - Create AuditLog entry
+   - Update related PO status (if applicable)
+   - All must succeed or all rollback
+
+5. **Serial Tracking**: Only applies when Product.serialTrackingEnabled = true.
+   - SerialNumber.serialValue must be unique [tenantId, productId]
+   - Duplicate serial → block with error message
+   - Serial can only transition: in_stock → issued or adjusted
+   - Cannot re-issue an issued serial
+   - StockOut must have matching count of in_stock serials
+
+6. **StockMovementLog**: Immutable audit trail. Created on every quantity change with before/after values. Never updated or deleted.
+
+7. **AuditLog**: Immutable audit trail. Created for all mutations and auth events. Never updated or deleted. Searchable by action, entity, user, date.
+
+8. **Purchase Order Lifecycle**: draft → ordered → partially_received → received. Can be cancelled from any state.
+
+9. **Printable Slip Number**: Format SO-XXXXX (5-digit zero-padded, e.g., SO-00001). Auto-generated at StockOut creation. Immutable. Unique per tenant. Counter never resets, numbers only ever increase.
+
+10. **Low Stock Monitoring**: Daily job (0 0 * * * UTC) per tenant checks products where currentQuantity <= lowStockThreshold. Creates alert + email to admin + purchasing_staff. Uses LowStockNotificationLog to track sent notifications.
+
+11. **Impersonation**: When session.isImpersonating = true, all mutations return FORBIDDEN. Client UI disables all action buttons. Banner shown on every page.
+
+12. **User Lifecycle**: Users disabled (isActive = false), never hard-deleted. 7-year retention minimum.
+
+13. **Tenant Lifecycle**: Tenants suspended or reactivated, never hard-deleted. 7-year retention minimum.
+
+---
+
+### 10. DEPLOYMENT & ENVIRONMENTS
+
+**Environments**: dev, staging, prod
+
+**Dev Mode**: WSL2 native (pre-locked, no port assignment specified — Phase 3 assigns it)
+
+**Ports** (dev/docker-compose):
+- PostgreSQL: 44874
+- PgBouncer: 44875
+- Redis/Valkey: 44876
+- MinIO: 44877
+- MinIO Console: 44878
+- MailHog SMTP: 44879
+- MailHog UI: 44880
+- pgAdmin: 44881
+- Next.js App: 44884
+- BullMQ Worker: 44885
+- Prisma Studio: 44894
+
+**Docker Stack**:
+- Next.js (web server + tRPC API)
+- PostgreSQL (RLS-enabled)
+- Valkey (cache + BullMQ)
+- MinIO (S3-compatible storage)
+- pgAdmin (DB management)
+- PgBouncer (connection pooling, per-tenant limits)
+
+**Domains**:
+- Dev: `http://localhost:[assigned port]`
+- Staging: `https://inventorize-staging.powerbyte.app`
+- Prod: `https://inventorize.powerbyte.app`
+
+**CORS**:
+- Dev: `localhost:*`
+- Staging: `https://inventorize-staging.powerbyte.app`
+- Prod: `https://inventorize.powerbyte.app`
+
+---
+
+### 11. JOBS & BACKGROUND TASKS
+
+**BullMQ Queue Configuration**:
+- `low-stock-check`: Cron `0 0 * * *` (daily at 00:00 UTC)
+  - Per-tenant iteration: loops through all active tenants
+  - Checks products where currentQuantity <= lowStockThreshold
+  - Triggers email notification job
+  - Creates LowStockNotificationLog entry
+  - Error handling: retry 3× with exponential backoff
+
+- `email-notifications`: Event-driven (no cron)
+  - Triggered by: low-stock-check job, user signup (welcome email), password reset
+  - Uses SMTP (SES in prod, MailHog in dev)
+  - Sends to: tenant admin + purchasing_staff (low stock), tenant admin (welcome), user (password reset)
+  - Error handling: retry 3× with exponential backoff, log failure status
+
+---
+
+### 12. PRODUCTION MIGRATION PATH
+
+When scaling from Docker Compose to AWS/managed services:
+- PostgreSQL: RDS (managed, RLS-enabled)
+- S3: AWS S3 (S3-compatible config, no code changes)
+- Redis/Valkey: ElastiCache (managed)
+- Email: SES (SMTP endpoint swap, .env update only)
+- PgBouncer: Managed by RDS or self-hosted
+- Credentials: `.env.{env}` files only, zero code changes required
+
+---
+
+## SUMMARY TABLE OF PACKAGES NEEDED
+
+| Package | Purpose | Key Exports |
+|---------|---------|-------------|
+| **packages/shared** | TypeScript types + Zod schemas | All entity types, enums, session type, zod validation schemas |
+| **packages/api-client** | tRPC client + hooks | Typed tRPC client instance, useQuery/useMutation hooks for all procedures |
+
+---
+
+## FILE PATHS FOR REFERENCE
+
+- Entity definitions: `/home/me/UbuntuDevFiles/1_COMPANY_DEV/CompanyApps/Inventorize/docs/PRODUCT.md` (lines 117-137)
+- Tech stack & config: `/home/me/UbuntuDevFiles/1_COMPANY_DEV/CompanyApps/Inventorize/inputs.yml`
+```
+</details></tool-use>
+
+_**Agent - sidechain (2026-04-03 06:02:34Z)**_
+
+I need to understand the full entity model and API structure for the Inventorize project to generate packages/shared (TypeScript types + Zod schemas) and packages/api-client (tRPC client).
+
+Read these files thoroughly:
+1. /home/me/UbuntuDevFiles/1_COMPANY_DEV/CompanyApps/Inventorize/docs/PRODUCT.md — I need ALL entity definitions with their fields, relationships, enums, and roles. Read the ENTIRE file.
+2. /home/me/UbuntuDevFiles/1_COMPANY_DEV/CompanyApps/Inventorize/inputs.yml — tech stack and app config
+
+Report:
+- Every entity with ALL its fields, types, and relationships
+- Every enum/union type (roles, statuses, etc.)
+- Every user role and their permissions
+- The tRPC API structure (what routers/procedures are needed)
+- The auth session fields
+- Any Zod validation rules mentioned (min/max lengths, patterns, etc.)
+- The tenancy model details (multi-tenant, subdirectory routing)
+
+Be extremely thorough — I need field-level detail for every entity.
+
+_**Agent - sidechain (claude-haiku-4-5-20251001 2026-04-03 06:02:38Z)**_
+
+I'll read both files thoroughly to extract the complete entity model and API structure for the Inventorize project.
+
+_**Agent - sidechain (claude-haiku-4-5-20251001 2026-04-03 06:02:39Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./docs/PRODUCT.md`
+
+```text
+1	# Inventorize
+2	
+3	## App Identity
+4	Name:           Inventorize
+5	Tagline:        Track your inventory, anytime, anywhere.
+6	Industry:       SaaS / internal operations / inventory management
+7	Primary users:  Platform super admin, tenant admins, warehouse staff, purchasing staff
+8	
+9	## Problem Statement
+10	Small and mid-size companies still track inventory in spreadsheets — leading to stock discrepancies, no audit trail, and zero visibility into stock movements. Existing inventory software is either too expensive, too complex, or requires on-premise installation. Inventorize provides a multi-tenant SaaS where each company gets its own isolated inventory workspace with barcode scanning, serial tracking, purchase orders, stock movement history, and full audit logging — all from a browser. The platform operator manages tenant onboarding, billing readiness, and cross-tenant health monitoring from a super admin dashboard.
+11	
+12	## Core User Flows
+13	
+14	1. **Super admin onboards a new tenant**: Super admin opens tenant management → enters the tenant name → system auto-generates a URL slug (lowercased, spaces and special characters replaced with hyphens). The slug field is shown pre-filled and editable before saving. A real-time uniqueness check runs as the super_admin types — if the slug is already taken, an inline error is shown ("This slug is already taken — please choose another") and save is blocked. A URL preview is shown beneath the slug field (e.g. inventorize.powerbyte.app/[slug]/dashboard). Super admin also enters the contact email → system provisions tenant workspace with subdirectory route (app.com/tenant-slug/) → super admin creates the tenant's first admin user account with tenant assignment → system generates a one-time account setup token (cryptographically random, stored as a hash in the database, 24-hour expiry, single-use) → tenant admin receives welcome email containing a link to /auth/setup?token=[token] → admin clicks link, is prompted to set their own password, and logs in normally. The token is invalidated immediately on use or after 24 hours, whichever comes first. If the link expires, the super_admin can trigger a password reset from the user management page. Once the tenant is created, the slug is permanent and cannot be changed. Error: user creation fails → roll back tenant record, show retry option.
+15	
+16	2. **Super admin manages the platform**: Super admin views all tenants list with status (active/suspended/trial) → can suspend or reactivate a tenant → can view cross-tenant metrics (total tenants, total products across platform, active users per tenant) → can impersonate a tenant admin for support (read-only mode) → all super admin actions create AuditLog entries. Impersonation is strictly read-only: server-side tRPC middleware returns FORBIDDEN on all mutation procedures when session.isImpersonating = true. Client-side UI also disables all action buttons, form submissions, and destructive controls. A persistent banner is shown at the top of every page: "View Only — Impersonating [Tenant Name]". All page visits during impersonation are written to the platform AuditLog with the impersonated tenantId. Super admin exits impersonation by clicking an "Exit Impersonation" button that clears the flag from the session. Error: suspending a tenant with active users → confirm prompt before proceeding.
+17	
+18	3. **Tenant admin creates a product**: Tenant admin opens product creation form → enters productCode, barcodeValue, name, category, unit, supplierCost, markupPercent, lowStockThreshold, serialTrackingEnabled → system auto-calculates sellingPrice → save with currentQuantity = 0 → AuditLog created with tenantId. All data scoped to tenant automatically via RLS. Error: duplicate productCode within tenant → block save. Error: duplicate barcodeValue within tenant → block save.
+19	
+20	4. **Tenant admin edits a product**: Open existing product → edit allowed fields → recalculate sellingPrice if pricing changed → save → AuditLog with before/after values. Error: invalid values → block save. Note: currentQuantity never editable through this form.
+21	
+22	5. **Tenant admin or purchasing staff creates a purchase order**: Select supplier (tenant-scoped) → add products with ordered quantities → system snapshots supplierCost → optionally upload attachment → save as "draft" → later update status (ordered → partially_received → received, or cancel) → AuditLog on create and every status change. Error: no items → block. Error: attachment upload fails → preserve PO data, allow retry.
+23	
+24	6. **Any tenant staff records stock in**: Select product manually or scan product barcode via browser camera → enter quantity → optionally link PO → if serialTrackingEnabled, scan/enter serial numbers (count must equal quantity) → optionally upload delivery receipt → system validates → increase Product.currentQuantity atomically → create SerialNumber records as "in_stock" if serial-tracked → create StockMovementLog → AuditLog → if linked to PO, update receivedQty and PO status. Error: duplicate serial for product within tenant → block. Error: any failure → roll back entire transaction.
+25	
+26	7. **Tenant admin or warehouse staff records stock out**: Select product manually or scan barcode → enter quantity, requestedByName, usedFor, optional notes → if serialTrackingEnabled, scan/select exact serials (must be "in_stock", count must equal quantity) → validate sufficient stock → decrease Product.currentQuantity atomically → update serial status to "issued" → StockMovementLog → AuditLog → optionally generate printable slip. Error: insufficient stock → block, show available. Error: serial not in_stock → block. Error: any failure → roll back.
+27	
+28	8. **Tenant admin performs stock adjustment**: Enter reason and notes → select product → enter quantityDelta → if serial-tracked, identify serials → validate resulting stock not negative → apply atomically → StockMovementLog → AuditLog. approvedByUserId is optional audit trail only. Error: negative result → block. Error: any failure → roll back.
+29	
+30	9. **Any tenant user views product history**: Open product detail → view info, current quantity, serials if enabled → view StockMovementLog → filter by date, type, user, reference. Admin sees AuditLog entries. Pricing visibility enforced by role. All data tenant-scoped — users never see other tenants' data.
+31	
+32	10. **System runs low stock monitoring per tenant**: Daily scheduled job checks products per tenant where currentQuantity <= lowStockThreshold → per-tenant dashboard alert → low stock report → daily email to tenant admin and purchasing_staff → LowStockNotificationLog. Error: email fails → retry 3× with exponential backoff.
+33	
+34	11. **Any tenant user runs reports and exports**: Open dashboard or reports → apply filters → view data per role permissions → export as CSV → AuditLog for every export. All report data is tenant-scoped.
+35	
+36	12. **Any tenant user views the tenant dashboard**: User navigates to /[tenant-slug]/dashboard → sees KPI summary cards for the selected period (Today / This Week / This Month / Custom range). The inventory value KPI card is visible to admin and purchasing_staff only — hidden from warehouse_staff. Stock In vs Stock Out bar chart shown for the selected period. Low stock alert banner displayed if any products have currentQuantity <= lowStockThreshold; clicking the banner links to the Low Stock Report. All data is tenant-scoped — no data from other tenants is ever shown.
+37	
+38	## Modules + Features
+39	
+40	### Platform Administration (super_admin only)
+41	- Tenant list with search, filter by status (active/suspended/trial)
+42	- Tenant create form (name, slug [auto-generated from name, editable, real-time uniqueness check, URL preview shown], contact email)
+43	- Tenant suspend / reactivate
+44	- Cross-tenant metrics dashboard (total tenants, total products, active users per tenant)
+45	- Tenant admin impersonation (read-only support mode)
+46	- Platform-level audit log viewer
+47	
+48	### Dashboard (per tenant)
+49	- KPI summary cards: total active products, total stock quantity, low stock count, stock in/out counts for period, inventory value (admin/purchasing only)
+50	- Stock In vs Stock Out bar chart by period
+51	- Low stock alert banner
+52	
+53	### Products
+54	- Product list with search, filter, sort, pagination (tenant-scoped)
+55	- Product create/edit form (tenant admin only)
+56	- Product detail page with history tab
+57	- Barcode scanning for quick product lookup
+58	- Serial number list per product (if serial-tracked)
+59	
+60	### Suppliers
+61	- Supplier list with search (tenant admin and purchasing_staff)
+62	- Supplier create/edit form (tenant-scoped)
+63	
+64	### Purchase Orders
+65	- PO list with status filter (tenant admin and purchasing_staff)
+66	- PO create form with line items and attachment upload
+67	- PO detail page with status management
+68	- PO receiving (links to stock in)
+69	
+70	### Stock In
+71	- Stock in form with barcode scanning
+72	- PO linkage (optional)
+73	- Serial number entry for serial-tracked products
+74	- Delivery receipt upload
+75	- Stock in history list
+76	
+77	### Stock Out
+78	- Stock out form with barcode scanning
+79	- Serial selection for serial-tracked products
+80	- requestedByName and usedFor fields
+81	- Printable stock out slip
+82	- Stock out history list
+83	
+84	### Stock Adjustments
+85	- Adjustment form (tenant admin only)
+86	- Reason and notes required
+87	- Positive or negative quantity delta
+88	- Serial identification when applicable
+89	- Adjustment history list
+90	
+91	### Reports
+92	- Low Stock Report
+93	- Stock Movement Report (filterable by date, product, type, user)
+94	- Current Inventory Report
+95	- Product History Report
+96	- Audit Trail Report (tenant admin only, searchable)
+97	- CSV export for all reports
+98	
+99	### Audit Logs
+100	- Searchable audit log viewer (tenant admin only — tenant-scoped)
+101	- Filter by action type, entity, user, date
+102	
+103	### Users
+104	- User list (tenant admin only — shows only tenant's users)
+105	- User create/edit/disable (no hard delete) — managed via Auth.js v5 with sessions in PostgreSQL
+106	- Role assignment within tenant
+107	
+108	## Roles + Permissions
+109	
+110	| Role | Scope | Can do | Cannot do |
+111	|------|-------|--------|-----------|
+112	| super_admin | Platform-wide | Manage all tenants (create, suspend, reactivate). View cross-tenant metrics. Impersonate tenant admin (read-only). View platform audit logs. Create first admin user for new tenants. | Cannot modify tenant business data (products, stock, POs). Cannot create stock transactions. Cannot hard-delete tenants. |
+113	| admin | Tenant-scoped | Manage users within own tenant (create, update, disable). Manage products (create, edit). View and update all pricing. Manage suppliers. Manage purchase orders. Create stock in/out. Create stock adjustments. View audit logs (own tenant only). View reports and export CSV. | Cannot see other tenants' data. Cannot manage platform. Cannot hard-delete users or products. Cannot directly edit currentQuantity. |
+114	| warehouse_staff | Tenant-scoped | View products (selling price only). Create stock in. Create stock out. View stock movement logs. View reports and export CSV. | Cannot view supplierCost or markupPercent. Cannot manage users, suppliers, POs, or adjustments. Cannot view audit logs. Cannot see other tenants' data. |
+115	| purchasing_staff | Tenant-scoped | View products with all pricing. Manage suppliers. Manage purchase orders. Create stock in. View stock out (read only). View stock movement logs. View reports and export CSV. | Cannot create stock out. Cannot manage users or adjustments. Cannot view audit logs. Cannot see other tenants' data. |
+116	
+117	## Data Entities
+118	
+119	### Platform-level (no tenantId)
+120	- Tenant: id, name, slug (unique), contactEmail, status (enum: active/suspended/trial), createdAt, updatedAt
+121	- User: id, tenantId → Tenant (null for super_admin), name, email, hashedPassword, role (enum: super_admin/admin/warehouse_staff/purchasing_staff), isActive, lastLoginAt, createdAt, updatedAt
+122	
+123	### Tenant-scoped (all have tenantId, enforced by RLS)
+124	- Product: id, tenantId → Tenant, productCode (unique per tenant), barcodeValue (unique per tenant), name, category, unit, supplierCost, markupPercent, sellingPrice (computed), currentQuantity (system-managed), lowStockThreshold, serialTrackingEnabled, isActive, createdAt, updatedAt
+125	- Supplier: id, tenantId → Tenant, name, contactPerson, phone, email, address, notes, isActive, createdAt, updatedAt
+126	- PurchaseOrder: id, tenantId → Tenant, poNumber (unique per tenant), supplierId → Supplier, orderDate, expectedDate, status (enum: draft/ordered/partially_received/received/cancelled), notes, attachmentUrl, createdByUserId → User, createdAt, updatedAt
+127	- PurchaseOrderItem: id, purchaseOrderId → PurchaseOrder, productId → Product, orderedQty, receivedQty, supplierCostSnapshot
+128	- StockIn: id, tenantId → Tenant, referenceNumber (unique per tenant), purchaseOrderId → PurchaseOrder (optional), receivedDate, receivedByUserId → User, notes, attachmentUrl, createdAt
+129	- StockInItem: id, stockInId → StockIn, productId → Product, quantity, supplierCostSnapshot
+130	- StockOut: id, tenantId → Tenant, referenceNumber (unique per tenant), releasedDate, releasedByUserId → User, requestedByName, usedFor, notes, printableSlipNumber, createdAt
+131	- StockOutItem: id, stockOutId → StockOut, productId → Product, quantity, sellingPriceSnapshot
+132	- SerialNumber: id, tenantId → Tenant, productId → Product, serialValue, barcodeValue, status (enum: in_stock/issued/adjusted), stockInItemId → StockInItem (optional), stockOutItemId → StockOutItem (optional), createdAt, updatedAt. Unique constraint: [tenantId, productId, serialValue].
+133	- StockAdjustment: id, tenantId → Tenant, adjustmentDate, reason, notes, createdByUserId → User, approvedByUserId → User (optional — audit trail only, not blocking), createdAt
+134	- StockAdjustmentItem: id, stockAdjustmentId → StockAdjustment, productId → Product, quantityDelta, serialNumberId → SerialNumber (optional)
+135	- StockMovementLog: id, tenantId → Tenant, productId → Product, movementType (enum: stock_in/stock_out/adjustment), referenceType, referenceId, quantityBefore, quantityDelta, quantityAfter, serialNumberId (optional), performedByUserId → User, requestedByName, usedFor, performedAt, notes — IMMUTABLE
+136	- AuditLog: id, tenantId → Tenant (null for platform-level actions), actorUserId → User, actionType, entityType, entityId, fieldChangesJson, beforeStateJson, afterStateJson, createdAt — IMMUTABLE
+137	- LowStockNotificationLog: id, tenantId → Tenant, productId → Product, notifiedToUserId → User, sentAt, status
+138	
+139	### Key Business Rules (CRITICAL — agents must enforce)
+140	- Product.currentQuantity is system-managed only — never directly editable
+141	- Product.sellingPrice is always computed: supplierCost + (supplierCost × markupPercent / 100)
+142	- Stock can never go negative — any violating transaction must be blocked
+143	- All stock quantity changes must be atomic — full transaction rollback on any failure
+144	- Every quantity change must create a StockMovementLog with before/after values
+145	- Every important action must create an AuditLog entry — immutable
+146	- All tenant-scoped data must include tenantId — enforced by RLS at database level
+147	- Users can never see, query, or modify another tenant's data
+148	- When session.isImpersonating = true: all tRPC mutations return FORBIDDEN server-side regardless of role. Client UI reflects this with disabled controls and the impersonation banner.
+149	- Unique constraints (productCode, barcodeValue, poNumber, referenceNumber, serialValue) are scoped per tenant, not globally
+150	- Serial tracking applies only when product has serialTrackingEnabled = true
+151	- Barcode/QR scanning is input helper only — all scanned values must pass server-side validation
+152	- StockOut.printableSlipNumber format: 'SO-' + zero-padded 5-digit sequential number per tenant (e.g. SO-00001, SO-00002). Auto-generated at creation time, immutable, unique per tenant. The counter is never reset — numbers only ever increase.
+153	
+154	## Integrations
+155	- Email (SMTP): daily low stock notification emails per tenant, welcome emails for new tenant admins — SES in production, MailHog in dev
+156	- No external auth service — Auth.js v5 sessions stored in PostgreSQL (white-label, zero external dependency)
+157	
+158	## Deployment Config
+159	Environments: dev / staging / prod
+160	Hosting:      Single VPS or managed services
+161	Dev mode:     MODE A — WSL2 native (pre-locked)
+162	Docker Hub:   disabled
+163	
+164	## Mobile Needs
+165	None — web only. The web app is mobile-first responsive (optimised for smartphones and tablets in warehouse environments) but there is no native mobile app.
+166	
+167	## Non-functional Requirements
+168	Performance:    < 500ms API response for all CRUD operations. Stock transactions < 1s including all log writes. Tenant context resolution (slug → tenantId) < 10ms (cached).
+169	Uptime:         99.5% SLA for production (SaaS — customer-facing)
+170	Data retention: All traceability records kept minimum 7 years. Users disabled, never deleted. Tenants suspended, never deleted.
+171	Compliance:     None specific. Standard data protection practices. Cross-tenant data isolation enforced at database level via RLS.
+172	
+173	## Tenancy Model
+174	multi — subdirectory routing
+175	URL pattern: app.com/[tenant-slug]/dashboard, app.com/[tenant-slug]/products, etc.
+176	Shared global data: none — all business data is tenant-scoped
+177	Roles: global (same role set across all tenants: admin, warehouse_staff, purchasing_staff)
+178	DB isolation: shared schema + tenant_id column on all tenant-scoped tables + PostgreSQL RLS
+179	DB isolation exception: none (inventory data does not require separate schema)
+180	
+181	## User-Facing URLs
+182	/login                              public — Auth.js v5 authentication
+183	/platform/tenants                   super_admin — tenant management
+184	/platform/metrics                   super_admin — cross-tenant metrics
+185	/platform/audit-logs                super_admin — platform audit logs
+186	/[tenant-slug]/dashboard            tenant — main dashboard
+187	/[tenant-slug]/products             tenant — product list
+188	/[tenant-slug]/products/[id]        tenant — product detail
+189	/[tenant-slug]/products/[id]/history tenant — product movement history
+190	/[tenant-slug]/suppliers            tenant — supplier list
+191	/[tenant-slug]/purchase-orders      tenant — PO list
+192	/[tenant-slug]/purchase-orders/[id] tenant — PO detail
+193	/[tenant-slug]/stock-in             tenant — stock receiving
+194	/[tenant-slug]/stock-out            tenant — stock releasing
+195	/[tenant-slug]/adjustments          tenant — stock adjustments (admin only)
+196	/[tenant-slug]/reports              tenant — reports and exports
+197	/[tenant-slug]/audit-logs           tenant — audit log viewer (admin only)
+198	/[tenant-slug]/users                tenant — user management (admin only)
+199	
+200	## Access Control
+201	Public routes:    /login (Auth.js v5 sign-in page)
+202	Protected routes: all other routes require authenticated session via Auth.js v5
+203	Super-admin only: /platform/* routes
+204	Tenant admin only: /[tenant-slug]/users, /[tenant-slug]/audit-logs, /[tenant-slug]/adjustments
+205	Tenant admin + purchasing: /[tenant-slug]/purchase-orders, /[tenant-slug]/suppliers
+206	All tenant roles: /[tenant-slug]/dashboard, /[tenant-slug]/products, /[tenant-slug]/stock-in, /[tenant-slug]/stock-out, /[tenant-slug]/reports
+207	
+208	### Tenant isolation rules
+209	- Authenticated user's tenantId is extracted from Auth.js v5 session/JWT on every request (L1)
+210	- Every tenant-scoped DB query is automatically filtered by tenantId via Prisma middleware (L2)
+211	- PostgreSQL RLS provides database-level enforcement as defense-in-depth
+212	- A user assigned to tenant A can never access routes or data for tenant B
+213	- super_admin has no tenantId — accesses only /platform/* routes, never tenant business data directly
+214	
+215	## Data Sensitivity
+216	PII stored:       yes — user name, email, hashed password (in PostgreSQL via Auth.js v5), requestedByName
+217	Financial data:   yes — supplierCost, markupPercent, sellingPrice, purchase order values, inventory valuation (restricted by role, scoped by tenant)
+218	Health data:      no
+219	Audit required:   tenant creation/suspension/reactivation, user creation/role changes/disabling, login events, product create/update/pricing/threshold changes, supplier create/update, PO create/update/status change, stock in, stock out, stock adjustment, serial number creation/status changes, file upload/removal, report export, notification send/failure, every quantity-affecting stock movement, super_admin impersonation events
+220	GDPR/compliance:  no specific regulatory requirement — standard data protection. Cross-tenant data isolation enforced at DB level. 7-year retention. No hard deletes.
+221	
+222	## Security Requirements
+223	Rate limiting:    public: 60/min per IP | authenticated: 300/min per user | upload: 10/min per user
+224	CORS origins:     dev: localhost:* | staging: https://inventorize-staging.powerbyte.app | prod: https://inventorize.powerbyte.app
+225	Security layers:  L1 app-layer tenant scoping (tenantId from Auth.js session/JWT) — ACTIVE
+226	                  L2 Prisma auto-inject middleware (tenantId on every query) — ACTIVE
+227	                  L3 RBAC tRPC middleware (role-based access on every endpoint) — ACTIVE
+228	                  L4 PgBouncer per-tenant connection pool limits — ACTIVE
+229	                  L5 AuditLog (immutable record on every mutation) — ACTIVE
+230	                  L6 Prisma query guardrails (automatic data scoping) — ACTIVE
+231	
+232	### Inventory-specific security
+233	- No negative stock — enforced at database transaction level
+234	- Audit logs immutable — no update or delete operations permitted
+235	- Stock movement logs immutable — no update or delete operations permitted
+236	- Tenant admin cannot view other tenants' audit logs
+237	- Warehouse staff cannot view supplier cost or markup pricing data
+238	- All barcode/QR scanned values must pass server-side validation
+239	- super_admin actions are audit-logged separately at platform level
+240	
+241	### Browser camera scanning
+242	- Camera permission requested before use
+243	- Client-side JavaScript barcode/QR library (html5-qrcode or zxing-js)
+244	- Supported: Android Chrome, iOS Safari, laptop webcam
+245	- Manual text input fallback always available
+246	- Live scanner preview with clear success/error feedback
+247	- Large tap targets for warehouse mobile use
+248	
+249	## Domain / Base URL Expectations
+250	Dev:     http://localhost:[port assigned by Phase 3 — do not specify a number here]
+251	Stage:   https://inventorize-staging.powerbyte.app
+252	Prod:    https://inventorize.powerbyte.app
+253	
+254	## Infrastructure Notes
+255	Default: all services run in Docker Compose — mono-server for dev/staging/prod.
+256	Docker Hub publishing: disabled
+257	pgAdmin: included on all environments — credentials auto-generated by Phase 3
+258	CREDENTIALS.md: generated by Phase 3 — master credentials list for all envs, strictly gitignored
+259	Security: HTTP headers + rate limiter + DOMPurify sanitizer scaffolded by Phase 4 — always-on defaults
+260	Spec stress-test: Phase 2.7 runs automatically before Phase 3 — catches PRODUCT.md gaps early
+261	AWS path when ready: RDS, S3, ElastiCache, SES — update .env.{env} only, zero code changes.
+262	
+263	### Compose services (dev)
+264	- Next.js app (web server + tRPC API)
+265	- PostgreSQL (primary database with RLS policies — also stores Auth.js v5 sessions)
+266	- Valkey (cache + BullMQ job queue)
+267	- MinIO (S3-compatible file storage for uploads)
+268	- pgAdmin (database management UI)
+269	- PgBouncer (connection pooling with per-tenant limits)
+270	
+271	### Production path
+272	- Managed PostgreSQL with RLS (e.g. RDS, Supabase, or DigitalOcean Managed DB)
+273	- S3-compatible storage (AWS S3, Cloudflare R2, or DigitalOcean Spaces)
+274	- Managed Redis/Valkey (e.g. ElastiCache, Upstash)
+275	- PgBouncer (connection pooling)
+276	- SES or equivalent for email notifications
+277	
+278	## Tech Stack Preferences
+279	Frontend framework:        Next.js
+280	API style:                 tRPC
+281	ORM / DB layer:            Prisma
+282	Auth provider:             Auth.js v5 (sessions in PostgreSQL — white-label, zero external service)
+283	Auth strategy:             authjs
+284	Account setup token:       VerificationToken table (Auth.js v5 schema compatible). Fields: identifier (user email), token (hashed), expires (DateTime). Used for first-login setup links (24h expiry, single-use).
+285	Primary database:          PostgreSQL
+286	Cache / queue:             Valkey + BullMQ
+287	File storage:              MinIO (dev) / S3 (prod)
+288	UI component library:      shadcn/ui + Tailwind CSS
+289	
+290	## Design Identity
+291	Brand feel:         professional/enterprise
+292	Target aesthetic:   Clean, dense information layout optimised for fast warehouse operations. Minimal decorative elements. High contrast for readability in bright warehouse environments. Large tap targets and clear feedback for scanning workflows. Tenant branding kept minimal — platform-consistent UI.
+293	Industry category:  SaaS / inventory management
+294	Dark mode required: optional toggle
+295	Key constraint:     Mobile-first responsive layout — warehouse staff primarily use smartphones and tablets. Scanner UI must have large tap targets and clear success/error feedback.
+296	
+297	## Out of Scope
+298	- Multi-warehouse support per tenant (single location per tenant, no warehouse-to-warehouse transfers)
+299	- Approval workflows (approvedByUserId on StockAdjustment is optional audit trail only — not blocking)
+300	- Native mobile app (web app is mobile-first responsive, not a native iOS/Android app)
+301	- Realtime push updates or WebSocket connections
+302	- Advanced demand forecasting or predictive analytics
+303	- Supplier analytics or supplier performance scoring
+304	- Complex enterprise ERP features (accounting, general ledger, HR, payroll)
+305	- Offline-first functionality (requires internet connection)
+306	- Public API for external integrations
+307	- Multi-language / i18n support
+308	- Billing or invoicing (no subscription management, payment processing, or usage metering in this version)
+309	- Customer self-service tenant registration (super_admin onboards tenants manually)
+310	- Custom branding per tenant (single platform-wide look and feel)
+311	- Tenant data export/migration tooling
+312	- External IAM platform (no Logto, Auth0, or Clerk — Auth.js v5 handles all auth natively)
+313
+```
+</details></tool-use>
+
+_**Agent - sidechain (claude-haiku-4-5-20251001 2026-04-03 06:02:39Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./inputs.yml`
+
+```text
+1	# inputs.yml — Spec-Driven Platform V26
+2	# Generated by Phase 3 — DO NOT EDIT MANUALLY
+3	# All values derive from docs/PRODUCT.md and Phase 2 discovery interview
+4	# Run Phase 7 Feature Update to change anything here
+5	# ---
+6	
+7	app:
+8	  name: Inventorize
+9	  display_name: "Inventorize by Powerbyte"
+10	  slug: inventorize
+11	  tagline: "Track your inventory, anytime, anywhere."
+12	  industry: saas_inventory
+13	
+14	domains:
+15	  prod: inventorize.powerbyte.app
+16	  staging: inventorize-staging.powerbyte.app
+17	
+18	tenancy:
+19	  mode: multi
+20	  routing: subdirectory
+21	  url_pattern: "/[tenant-slug]"
+22	  shared_global_data: false
+23	  slug_generation: auto_from_name
+24	  slug_collision: editable_field_with_inline_error
+25	
+26	auth:
+27	  provider: authjs_v5
+28	  strategy: credentials
+29	  session_storage: postgresql
+30	  session_fields:
+31	    - userId
+32	    - tenantId
+33	    - roles
+34	    - name
+35	    - email
+36	    - isImpersonating
+37	  first_login: one_time_setup_link
+38	  setup_token_expiry_hours: 24
+39	  login_error_message: "Invalid credentials."
+40	
+41	navigation:
+42	  type: role_conditional
+43	  hardcoded: true
+44	  hidden_from_warehouse_staff:
+45	    - adjustments
+46	    - suppliers
+47	    - purchase_orders
+48	    - audit_logs
+49	
+50	apps:
+51	  - name: web
+52	    framework: nextjs
+53	    type: app_router
+54	    port: null  # assigned in ports.dev.app — see below
+55	
+56	packages:
+57	  - shared
+58	  - api-client
+59	  - db
+60	  - ui
+61	  - jobs
+62	  - storage
+63	
+64	tech_stack:
+65	  frontend: nextjs
+66	  api: trpc
+67	  orm: prisma
+68	  auth: authjs_v5
+69	  database: postgresql
+70	  cache: valkey
+71	  queue: bullmq
+72	  storage_dev: minio
+73	  storage_prod: s3_compatible
+74	  ui_components: shadcn_ui
+75	  css: tailwind_css
+76	
+77	jobs:
+78	  enabled: true
+79	  provider: bullmq
+80	  queues:
+81	    - name: low-stock-check
+82	      cron: "0 0 * * *"  # 00:00 UTC daily — per tenant iteration required
+83	      description: Checks currentQuantity <= lowStockThreshold per tenant, triggers alerts
+84	    - name: email-notifications
+85	      cron: null  # event-driven — triggered by low-stock-check and user events
+86	      description: Sends welcome emails, low stock reports, and system notifications
+87	
+88	storage:
+89	  enabled: true
+90	  provider: minio
+91	  allowed_mime_types:
+92	    - application/pdf
+93	    - image/jpeg
+94	    - image/png
+95	  max_file_size_mb: 10
+96	  path_pattern: "${tenantId}/${entityType}/${randomFilename}"
+97	  serve_files: true  # files are viewable + downloadable through app UI
+98	  svg_html_blocked: true
+99	
+100	mobile:
+101	  enabled: false
+102	
+103	docker:
+104	  publish: false
+105	
+106	security:
+107	  rate_limits:
+108	    public_per_min: 60       # unauthenticated endpoints
+109	    authenticated_per_min: 300  # all authenticated API calls including barcode scan
+110	    upload_per_min: 10       # file upload endpoints
+111	  cors:
+112	    dev: "localhost:*"
+113	    staging: "https://inventorize-staging.powerbyte.app"
+114	    prod: "https://inventorize.powerbyte.app"
+115	  security_layers:
+116	    L1_trpc_tenant_scoping: active
+117	    L2_prisma_auto_inject_middleware: active
+118	    L3_rbac_trpc_middleware: active
+119	    L4_pgbouncer_pool_limits: active
+120	    L5_immutable_audit_log: active
+121	    L6_prisma_query_guardrails: active
+122	  impersonation:
+123	    server_side_mutation_block: true   # FORBIDDEN on all mutations when isImpersonating=true
+124	    client_side_ui_disabled: true      # all action buttons/forms disabled
+125	    audit_log_all_views: true          # every page visit during impersonation logged
+126	
+127	reports:
+128	  kpi_periods:
+129	    - today
+130	    - this_week
+131	    - this_month
+132	    - custom
+133	  max_export_range_days: 365
+134	
+135	slip_numbers:
+136	  stock_out:
+137	    prefix: "SO-"
+138	    padding: 5       # SO-00001, SO-00002 ...
+139	    scope: per_tenant
+140	    immutable: true
+141	
+142	design:
+143	  brand_feel: professional_enterprise
+144	  dark_mode: light_default_with_toggle
+145	  mobile_first: true
+146	  target_aesthetic: "Clean, dense information layout optimised for fast warehouse operations"
+147	  industry: saas_inventory
+148	
+149	vibe_test:
+150	  enabled: true
+151	
+152	context7:
+153	  enabled: true
+154	
+155	accessibility:
+156	  level: none
+157	
+158	git:
+159	  default_branch: main
+160	  branch_pattern: feat/{slug}
+161	  commit_style: conventional
+162	  squash_merge: true
+163	  use_worktrees: true
+164	
+165	models:
+166	  planning: claude-code
+167	  execution: minimax-m2.5
+168	  governance: gemini-2.5-flash-lite
+169	  escalation: claude-sonnet-4-6
+170	
+171	ports:
+172	  dev:
+173	    base: 44874
+174	    db: 44874
+175	    pgbouncer: 44875
+176	    redis: 44876
+177	    minio: 44877
+178	    minio_console: 44878
+179	    mailhog_smtp: 44879
+180	    mailhog_ui: 44880
+181	    pgadmin: 44881
+182	    app: 44884
+183	    worker: 44885
+184	    studio: 44894
+185
+```
+</details></tool-use>
+
+_**Agent - sidechain (claude-haiku-4-5-20251001 2026-04-03 06:03:39Z)**_
+
+Perfect. I've read both files thoroughly. Let me compile a comprehensive report covering every aspect you need for generating the shared types and API client packages.
+
+---
+
+## COMPREHENSIVE INVENTORIZE ENTITY MODEL & API STRUCTURE REPORT
+
+### 1. ENTITIES WITH ALL FIELDS, TYPES, AND RELATIONSHIPS
+
+#### **PLATFORM-LEVEL ENTITIES (No tenantId)**
+
+**Tenant**
+- `id`: string (primary key)
+- `name`: string
+- `slug`: string (unique, auto-generated from name, editable with real-time uniqueness check before save, immutable after creation)
+- `contactEmail`: string
+- `status`: enum (active | suspended | trial)
+- `createdAt`: DateTime
+- `updatedAt`: DateTime
+- Relationships: 1→many Users (where tenantId is not null)
+
+**User**
+- `id`: string (primary key)
+- `tenantId`: string (FK → Tenant) — null for super_admin
+- `name`: string
+- `email`: string (unique per user, used as identifier in VerificationToken)
+- `hashedPassword`: string (via Auth.js v5)
+- `role`: enum (super_admin | admin | warehouse_staff | purchasing_staff)
+- `isActive`: boolean (soft-delete flag — users never hard-deleted)
+- `lastLoginAt`: DateTime (nullable)
+- `createdAt`: DateTime
+- `updatedAt`: DateTime
+- Relationships:
+  - Many→One Tenant (nullable for super_admin)
+  - 1→many PurchaseOrder (createdByUserId)
+  - 1→many StockIn (receivedByUserId)
+  - 1→many StockOut (releasedByUserId)
+  - 1→many StockAdjustment (createdByUserId, approvedByUserId nullable)
+  - 1→many StockMovementLog (performedByUserId)
+  - 1→many AuditLog (actorUserId)
+  - 1→many LowStockNotificationLog (notifiedToUserId)
+
+**VerificationToken** (Auth.js v5 schema)
+- `identifier`: string (user email)
+- `token`: string (hashed, cryptographically random)
+- `expires`: DateTime (24-hour TTL, single-use, validated and deleted on first use)
+- Purpose: one-time setup links for new tenant admin accounts during onboarding
+
+---
+
+#### **TENANT-SCOPED ENTITIES (All have tenantId, enforced by RLS)**
+
+**Product**
+- `id`: string (primary key)
+- `tenantId`: string (FK → Tenant, indexed)
+- `productCode`: string (unique per tenant, not globally)
+- `barcodeValue`: string (unique per tenant, for barcode scanning)
+- `name`: string
+- `category`: string
+- `unit`: string (e.g., "pcs", "kg", "liters")
+- `supplierCost`: decimal (6,2) — cost of goods
+- `markupPercent`: decimal (5,2) — percentage markup
+- `sellingPrice`: decimal (6,2) (computed: supplierCost + (supplierCost × markupPercent / 100)) — never directly editable
+- `currentQuantity`: integer (system-managed only, never directly editable via API, updated only by stock movements)
+- `lowStockThreshold`: integer
+- `serialTrackingEnabled`: boolean (if true, stock must include serial numbers)
+- `isActive`: boolean (soft-delete)
+- `createdAt`: DateTime
+- `updatedAt`: DateTime
+- Relationships:
+  - Many→One Tenant
+  - 1→many SerialNumber
+  - 1→many PurchaseOrderItem
+  - 1→many StockInItem
+  - 1→many StockOutItem
+  - 1→many StockAdjustmentItem
+  - 1→many StockMovementLog
+  - 1→many LowStockNotificationLog
+- Unique constraints:
+  - (tenantId, productCode)
+  - (tenantId, barcodeValue)
+- Validation rules:
+  - productCode: cannot be empty, must be unique per tenant
+  - barcodeValue: cannot be empty, must be unique per tenant
+  - supplierCost >= 0
+  - markupPercent >= 0
+  - lowStockThreshold >= 0
+
+**Supplier**
+- `id`: string (primary key)
+- `tenantId`: string (FK → Tenant, indexed)
+- `name`: string
+- `contactPerson`: string (nullable)
+- `phone`: string (nullable)
+- `email`: string (nullable)
+- `address`: string (nullable)
+- `notes`: string (nullable)
+- `isActive`: boolean (soft-delete)
+- `createdAt`: DateTime
+- `updatedAt`: DateTime
+- Relationships:
+  - Many→One Tenant
+  - 1→many PurchaseOrder (supplierId)
+- Role access: tenant admin only, purchasing_staff can view/manage
+
+**PurchaseOrder**
+- `id`: string (primary key)
+- `tenantId`: string (FK → Tenant, indexed)
+- `poNumber`: string (unique per tenant, system-generated or user-entered)
+- `supplierId`: string (FK → Supplier)
+- `orderDate`: DateTime
+- `expectedDate`: DateTime (nullable)
+- `status`: enum (draft | ordered | partially_received | received | cancelled)
+- `notes`: string (nullable)
+- `attachmentUrl`: string (nullable, file upload)
+- `createdByUserId`: string (FK → User)
+- `createdAt`: DateTime
+- `updatedAt`: DateTime
+- Relationships:
+  - Many→One Tenant
+  - Many→One Supplier
+  - Many→One User (createdByUserId)
+  - 1→many PurchaseOrderItem
+  - 1→many StockIn (optional linkage)
+- Unique constraints: (tenantId, poNumber)
+- Validation rules: poNumber must be unique per tenant
+- Status transitions: draft → ordered → (partially_received or received) | cancelled
+- receivedQty tracking: aggregate sum of PurchaseOrderItem.receivedQty
+
+**PurchaseOrderItem**
+- `id`: string (primary key)
+- `purchaseOrderId`: string (FK → PurchaseOrder)
+- `productId`: string (FK → Product)
+- `orderedQty`: integer (> 0)
+- `receivedQty`: integer (>= 0, starts at 0, incremented during stock in)
+- `supplierCostSnapshot`: decimal (6,2) (snapshot of Product.supplierCost at time of order creation)
+- Relationships:
+  - Many→One PurchaseOrder
+  - Many→One Product
+- Business rule: receivedQty <= orderedQty
+
+**StockIn** (stock receiving, increases Product.currentQuantity)
+- `id`: string (primary key)
+- `tenantId`: string (FK → Tenant, indexed)
+- `referenceNumber`: string (unique per tenant, system-generated: "SI-" + sequential number)
+- `purchaseOrderId`: string (FK → PurchaseOrder, nullable — optional linkage)
+- `receivedDate`: DateTime
+- `receivedByUserId`: string (FK → User)
+- `notes`: string (nullable)
+- `attachmentUrl`: string (nullable, delivery receipt)
+- `createdAt`: DateTime
+- Relationships:
+  - Many→One Tenant
+  - Many→One PurchaseOrder (optional)
+  - Many→One User (receivedByUserId)
+  - 1→many StockInItem
+  - 1→many SerialNumber (via StockInItem)
+- Unique constraints: (tenantId, referenceNumber)
+- Immutable after creation — no updates
+
+**StockInItem**
+- `id`: string (primary key)
+- `stockInId`: string (FK → StockIn)
+- `productId`: string (FK → Product)
+- `quantity`: integer (> 0)
+- `supplierCostSnapshot`: decimal (6,2) (snapshot at stock in time)
+- Relationships:
+  - Many→One StockIn
+  - Many→One Product
+  - 1→many SerialNumber (stockInItemId)
+
+**StockOut** (stock release, decreases Product.currentQuantity)
+- `id`: string (primary key)
+- `tenantId`: string (FK → Tenant, indexed)
+- `referenceNumber`: string (unique per tenant, system-generated: "SO-" + zero-padded 5-digit sequential)
+  - Format: "SO-00001", "SO-00002", etc.
+  - Immutable, never reset, only increments
+  - Auto-generated at creation time
+- `releasedDate`: DateTime
+- `releasedByUserId`: string (FK → User)
+- `requestedByName`: string (person/department requesting the stock)
+- `usedFor`: string (purpose/project for the stock)
+- `notes`: string (nullable)
+- `printableSlipNumber`: string (same as referenceNumber, used for printing)
+- `createdAt`: DateTime
+- Relationships:
+  - Many→One Tenant
+  - Many→One User (releasedByUserId)
+  - 1→many StockOutItem
+  - 1→many SerialNumber (via StockOutItem)
+- Unique constraints: (tenantId, referenceNumber)
+- Immutable after creation
+
+**StockOutItem**
+- `id`: string (primary key)
+- `stockOutId`: string (FK → StockOut)
+- `productId`: string (FK → Product)
+- `quantity`: integer (> 0, must be <= available quantity including serials)
+- `sellingPriceSnapshot`: decimal (6,2) (snapshot at stock out time)
+- Relationships:
+  - Many→One StockOut
+  - Many→One Product
+  - 1→many SerialNumber (stockOutItemId)
+
+**SerialNumber** (for serial-tracked products)
+- `id`: string (primary key)
+- `tenantId`: string (FK → Tenant, indexed)
+- `productId`: string (FK → Product)
+- `serialValue`: string (unique per product per tenant)
+- `barcodeValue`: string (nullable, for barcode scanning of serial)
+- `status`: enum (in_stock | issued | adjusted)
+  - in_stock: received, available for issue
+  - issued: released via stock out
+  - adjusted: changed via stock adjustment
+- `stockInItemId`: string (FK → StockInItem, nullable — links to receiving event)
+- `stockOutItemId`: string (FK → StockOutItem, nullable — links to release event)
+- `createdAt`: DateTime
+- `updatedAt`: DateTime
+- Relationships:
+  - Many→One Tenant
+  - Many→One Product
+  - Many→One StockInItem (optional)
+  - Many→One StockOutItem (optional)
+  - 1→many StockAdjustmentItem
+- Unique constraints: (tenantId, productId, serialValue)
+- Validation rules:
+  - serialValue must be unique per product within tenant
+  - status transitions: in_stock → issued (or adjusted) only
+  - stockInItemId must be present when created
+
+**StockAdjustment** (manual quantity correction)
+- `id`: string (primary key)
+- `tenantId`: string (FK → Tenant, indexed)
+- `adjustmentDate`: DateTime
+- `reason`: string (required — e.g., "damage", "loss", "recount", "correction")
+- `notes`: string (nullable)
+- `createdByUserId`: string (FK → User)
+- `approvedByUserId`: string (FK → User, nullable — optional audit trail, NOT blocking)
+- `createdAt`: DateTime
+- Relationships:
+  - Many→One Tenant
+  - Many→One User (createdByUserId)
+  - Many→One User (approvedByUserId, optional)
+  - 1→many StockAdjustmentItem
+- Immutable after creation
+
+**StockAdjustmentItem**
+- `id`: string (primary key)
+- `stockAdjustmentId`: string (FK → StockAdjustment)
+- `productId`: string (FK → Product)
+- `quantityDelta`: integer (positive or negative, cannot result in negative total quantity)
+- `serialNumberId`: string (FK → SerialNumber, nullable — for serial-tracked adjustments)
+- Relationships:
+  - Many→One StockAdjustment
+  - Many→One Product
+  - Many→One SerialNumber (optional)
+- Business rule: Product.currentQuantity + quantityDelta >= 0
+
+**StockMovementLog** (immutable audit trail for every quantity change)
+- `id`: string (primary key)
+- `tenantId`: string (FK → Tenant, indexed)
+- `productId`: string (FK → Product)
+- `movementType`: enum (stock_in | stock_out | adjustment)
+- `referenceType`: string (e.g., "StockIn", "StockOut", "StockAdjustment")
+- `referenceId`: string (id of StockIn/StockOut/StockAdjustment record)
+- `quantityBefore`: integer
+- `quantityDelta`: integer
+- `quantityAfter`: integer (computed: quantityBefore + quantityDelta)
+- `serialNumberId`: string (FK → SerialNumber, nullable — if serial involved)
+- `performedByUserId`: string (FK → User)
+- `requestedByName`: string (nullable, copied from StockOut if applicable)
+- `usedFor`: string (nullable, copied from StockOut if applicable)
+- `performedAt`: DateTime
+- `notes`: string (nullable)
+- `createdAt`: DateTime
+- Relationships:
+  - Many→One Tenant
+  - Many→One Product
+  - Many→One User (performedByUserId)
+  - Many→One SerialNumber (optional)
+- IMMUTABLE: no update or delete operations permitted
+- Validation: quantityAfter must equal quantityBefore + quantityDelta
+
+**AuditLog** (immutable record of every mutation)
+- `id`: string (primary key)
+- `tenantId`: string (FK → Tenant, nullable — null for platform-level actions)
+- `actorUserId`: string (FK → User)
+- `actionType`: string (e.g., "CREATE", "UPDATE", "DELETE", "SUSPEND", "IMPERSONATE")
+- `entityType`: string (e.g., "Product", "PurchaseOrder", "User", "Tenant", "StockIn", "StockOut")
+- `entityId`: string (id of affected entity)
+- `fieldChangesJson`: string (JSON object mapping field names to {before, after} for updates, null for create/delete)
+- `beforeStateJson`: string (JSON snapshot of entity state before mutation, nullable)
+- `afterStateJson`: string (JSON snapshot of entity state after mutation, nullable)
+- `createdAt`: DateTime
+- Relationships:
+  - Many→One Tenant (optional)
+  - Many→One User (actorUserId)
+- IMMUTABLE: no update or delete operations permitted
+- Scope enforcement: tenant admin can only see logs for own tenant (tenantId filter); super_admin sees all with tenantId filtering
+- Coverage: tenant creation/suspension, user creation/role changes/disabling, login events, product changes, supplier changes, all PO changes, all stock movements, serial changes, file uploads, report exports, impersonation events, notification sends
+
+**LowStockNotificationLog** (tracking of low stock alerts sent)
+- `id`: string (primary key)
+- `tenantId`: string (FK → Tenant, indexed)
+- `productId`: string (FK → Product)
+- `notifiedToUserId`: string (FK → User)
+- `sentAt`: DateTime
+- `status`: enum (sent | failed | retried)
+- `createdAt`: DateTime
+- Relationships:
+  - Many→One Tenant
+  - Many→One Product
+  - Many→One User (notifiedToUserId)
+- Used by daily low-stock-check job to notify admins/purchasing_staff when currentQuantity <= lowStockThreshold
+
+---
+
+### 2. ENUMS & UNION TYPES
+
+**Tenant Status**
+```
+active | suspended | trial
+```
+
+**User Role**
+```
+super_admin | admin | warehouse_staff | purchasing_staff
+```
+
+**Purchase Order Status**
+```
+draft → ordered → (partially_received | received) | cancelled
+```
+
+**SerialNumber Status**
+```
+in_stock | issued | adjusted
+```
+
+**Stock Movement Type**
+```
+stock_in | stock_out | adjustment
+```
+
+**Low Stock Notification Status**
+```
+sent | failed | retried
+```
+
+---
+
+### 3. USER ROLES & PERMISSIONS MATRIX
+
+| Role | Scope | Can Do | Cannot Do | Visibility |
+|------|-------|--------|-----------|------------|
+| **super_admin** | Platform-wide | Manage all tenants (create, suspend, reactivate). View cross-tenant metrics. Impersonate tenant admin (read-only). View platform audit logs. Create first admin user for new tenants. | Cannot modify tenant business data. Cannot create stock transactions. Cannot hard-delete tenants. | Only /platform/* routes. No tenantId. |
+| **admin** | Tenant-scoped | Manage users (create, update, disable). Manage products (create, edit). Update pricing. Manage suppliers. Manage POs. Create stock in/out/adjustments. View audit logs (own tenant). View all reports. Export CSV. | Cannot see other tenants' data. Cannot manage platform. Cannot hard-delete. Cannot directly edit currentQuantity. | All tenant routes. Full pricing visibility. |
+| **warehouse_staff** | Tenant-scoped | View products (selling price only). Create stock in/out. View stock movement logs. View reports. Export CSV. | Cannot view supplierCost/markupPercent. Cannot manage users, suppliers, POs, adjustments. Cannot view audit logs. Cannot see other tenants' data. | Warehouse operations routes only. Pricing hidden. |
+| **purchasing_staff** | Tenant-scoped | View products (all pricing). Manage suppliers. Manage POs. Create stock in. View stock out (read-only). View stock movement logs. View reports. Export CSV. | Cannot create stock out. Cannot manage users/adjustments. Cannot view audit logs. Cannot see other tenants' data. | Purchasing/supplier routes. Full pricing visibility. |
+
+**Impersonation Behavior:**
+- super_admin can impersonate tenant admin for support (read-only mode)
+- Server-side: all tRPC mutations return `FORBIDDEN` when `session.isImpersonating = true`
+- Client-side: all action buttons, form submissions, destructive controls disabled
+- Persistent banner: "View Only — Impersonating [Tenant Name]"
+- All page visits logged to AuditLog with impersonated tenantId
+- Exit via "Exit Impersonation" button clears flag
+
+---
+
+### 4. tRPC API STRUCTURE (Routers & Procedures Needed)
+
+#### **Platform-Level Routers** (super_admin only)
+
+**tenant** router
+- `tenant.create(input: {name, contactEmail})` → returns {id, slug, contactEmail, status, createdAt}
+- `tenant.list(input: {page?, limit?, status?})` → paginated list with search/filter
+- `tenant.getById(input: {id})` → {id, name, slug, contactEmail, status, createdAt, updatedAt}
+- `tenant.suspend(input: {id})` → mutation, returns {id, status}
+- `tenant.reactivate(input: {id})` → mutation, returns {id, status}
+- `tenant.metrics()` → {totalTenants, totalProducts, activeUsersPerTenant[], totalInventoryValue}
+
+**impersonation** router
+- `impersonation.start(input: {tenantId})` → returns {tenantId, tenantName, impersonationStartedAt}
+- `impersonation.exit()` → clears isImpersonating flag from session
+- Middleware: verifies super_admin role, blocks all mutations server-side during impersonation
+
+**audit** router (platform-level)
+- `audit.listPlatform(input: {page?, limit?, actionType?, entityType?, userId?, dateRange?})` → all platform actions
+- `audit.exportPlatform(input: {filters})` → CSV export
+
+**user** router (super_admin only)
+- `user.createForTenant(input: {tenantId, email, name, role})` → creates first admin user, generates setup token, sends welcome email
+- `user.resetPassword(input: {userId})` → generates new setup token, sends reset link
+
+---
+
+#### **Tenant-Scoped Routers** (all require tenantId from session)
+
+**product** router (scoped to session.tenantId)
+- `product.list(input: {page?, limit?, search?, category?, sort?})` → tenant-scoped list with filters
+- `product.create(input: {productCode, barcodeValue, name, category, unit, supplierCost, markupPercent, lowStockThreshold, serialTrackingEnabled})` → validation: unique productCode/barcodeValue per tenant, returns full Product object
+- `product.update(input: {id, name?, category?, supplierCost?, markupPercent?, lowStockThreshold?, serialTrackingEnabled?})` → recalculates sellingPrice, creates AuditLog with before/after
+- `product.getById(input: {id})` → returns full Product + serialNumbers[] if serialTrackingEnabled
+- `product.getByBarcode(input: {barcodeValue})` → quick lookup for barcode scanning
+- `product.disable(input: {id})` → soft-delete, isActive = false
+- `product.export(input: {filters?})` → CSV export, creates AuditLog
+
+**supplier** router (admin, purchasing_staff)
+- `supplier.list(input: {page?, limit?, search?})` → tenant-scoped
+- `supplier.create(input: {name, contactPerson?, phone?, email?, address?, notes?})` → creates AuditLog
+- `supplier.update(input: {id, name?, contactPerson?, phone?, email?, address?, notes?})` → creates AuditLog
+- `supplier.getById(input: {id})`
+- `supplier.disable(input: {id})` → soft-delete
+
+**purchaseOrder** router (admin, purchasing_staff)
+- `purchaseOrder.list(input: {page?, limit?, status?, supplierId?, search?})` → tenant-scoped with status filter
+- `purchaseOrder.create(input: {supplierId, orderDate, expectedDate?, notes?, items: [{productId, orderedQty}], attachment?})` → creates AuditLog, snapshots supplierCost
+- `purchaseOrder.update(input: {id, supplierId?, expectedDate?, notes?, items?})` → draft only, creates AuditLog
+- `purchaseOrder.updateStatus(input: {id, newStatus})` → draft→ordered, ordered→(partially_received|received), any→cancelled, creates AuditLog
+- `purchaseOrder.getById(input: {id})` → full PO with items and supplier details
+- `purchaseOrder.export(input: {filters?})` → CSV export
+
+**stockIn** router (admin, warehouse_staff, purchasing_staff)
+- `stockIn.create(input: {purchaseOrderId?, receivedDate, notes?, items: [{productId, quantity}], serials?: {[productId]: ["SN1", "SN2"]}, attachment?})` → atomic transaction:
+  - Validates sufficient stock (if decreasing)
+  - Increments Product.currentQuantity
+  - Creates StockInItem records
+  - Creates SerialNumber records if present (status: in_stock)
+  - Increments PurchaseOrderItem.receivedQty if linked
+  - Updates PO status if all items received
+  - Creates StockMovementLog for each product
+  - Creates AuditLog
+  - Rollback on any failure
+- `stockIn.list(input: {page?, limit?, search?, dateRange?})` → tenant-scoped history
+- `stockIn.getById(input: {id})` → full StockIn with items and serials
+
+**stockOut** router (admin, warehouse_staff; purchasing_staff read-only)
+- `stockOut.create(input: {releasedDate, requestedByName, usedFor, notes?, items: [{productId, quantity}], serials?: {[productId]: ["SN1", "SN2"]}, attachment?})` → atomic transaction:
+  - Auto-generates referenceNumber (SO-00001, etc.)
+  - Validates sufficient stock (currentQuantity >= total quantity)
+  - Validates all serials are in_stock if serial-tracked
+  - Decrements Product.currentQuantity
+  - Creates StockOutItem records
+  - Updates SerialNumber status to issued
+  - Creates StockMovementLog for each product+serial
+  - Creates AuditLog
+  - Generates printableSlipNumber (same as referenceNumber)
+  - Rollback on any failure
+- `stockOut.list(input: {page?, limit?, search?, dateRange?})` → tenant-scoped history
+- `stockOut.getById(input: {id})` → full StockOut with items and serials
+- `stockOut.printSlip(input: {id})` → returns printable format using printableSlipNumber
+- `stockOut.export(input: {filters?})` → CSV export
+
+**stockAdjustment** router (admin only)
+- `stockAdjustment.create(input: {adjustmentDate, reason, notes?, items: [{productId, quantityDelta}], serials?: {[productId]: [serialNumberId]}, approvedByUserId?})` → atomic transaction:
+  - Validates resulting quantity not negative
+  - Updates Product.currentQuantity
+  - Creates StockAdjustmentItem records
+  - Updates SerialNumber status if serials involved
+  - Creates StockMovementLog for each product
+  - Creates AuditLog
+  - Rollback on any failure
+- `stockAdjustment.list(input: {page?, limit?, search?, dateRange?})` → tenant-scoped history
+- `stockAdjustment.getById(input: {id})`
+- `stockAdjustment.export(input: {filters?})` → CSV export
+
+**stockMovement** router (all roles)
+- `stockMovement.listForProduct(input: {productId, page?, limit?, dateRange?, movementType?})` → tenant-scoped, filtered history
+- `stockMovement.export(input: {filters?})` → CSV export
+
+**serialNumber** router (all roles, warehouse_staff cannot view cost data)
+- `serialNumber.listForProduct(input: {productId})` → all serials for product
+- `serialNumber.getByValue(input: {serialValue})` → quick lookup for scanning
+- `serialNumber.validateStatus(input: {serialValue})` → returns {status, productId}
+
+**audit** router (tenant-scoped, admin only)
+- `audit.listTenant(input: {page?, limit?, actionType?, entityType?, userId?, dateRange?})` → tenant-scoped, RLS enforced
+- `audit.export(input: {filters?})` → CSV export with AuditLog for export action
+
+**report** router (all roles)
+- `report.dashboard(input: {tenantId, period: 'today'|'this_week'|'this_month'|'custom', startDate?, endDate?})` → {
+    - totalActiveProducts: int
+    - totalStockQuantity: int
+    - lowStockCount: int
+    - stockInCount: int (for period)
+    - stockOutCount: int (for period)
+    - inventoryValue: decimal (admin/purchasing_staff only, null for warehouse_staff)
+    - stockInVsOutChartData: [{date, stockIn, stockOut}]
+    - lowStockAlerts: [{productId, productName, currentQuantity, threshold}]
+  }
+- `report.lowStock(input: {page?, limit?, sort?})` → tenant-scoped, products where currentQuantity <= lowStockThreshold
+- `report.currentInventory(input: {page?, limit?, search?, category?})` → full inventory snapshot
+- `report.productHistory(input: {productId, dateRange?, movementType?, user?})` → StockMovementLog history
+- `report.export(input: {reportType, filters?})` → CSV export, creates AuditLog for export action
+
+**user** router (admin only for tenant management)
+- `user.listForTenant(input: {page?, limit?, search?})` → tenant's users only
+- `user.create(input: {email, name, role})` → creates user, generates setup token, sends welcome email
+- `user.update(input: {id, name?, role?})` → creates AuditLog
+- `user.disable(input: {id})` → soft-delete, isActive = false, creates AuditLog
+- `user.resetPassword(input: {id})` → generates setup token, sends reset link
+
+**auth** router (public + authenticated)
+- `auth.login(input: {email, password})` → validates credentials via Auth.js, returns session with {userId, tenantId, role, name, email, isImpersonating}
+- `auth.setup(input: {token, password})` → validates VerificationToken (24h expiry, single-use), sets password, invalidates token, returns session
+- `auth.logout()` → clears session
+- `auth.getCurrentSession()` → returns current session or null
+- `auth.changePassword(input: {currentPassword, newPassword})` → authenticated only
+
+---
+
+### 5. AUTH SESSION FIELDS
+
+**Auth.js v5 Session Object**
+```typescript
+{
+  userId: string;
+  tenantId: string | null;  // null for super_admin
+  role: 'super_admin' | 'admin' | 'warehouse_staff' | 'purchasing_staff';
+  name: string;
+  email: string;
+  isImpersonating: boolean;  // false by default; true during super_admin support mode
+  // Auth.js v5 standard fields:
+  // expires: DateTime (ISO string)
+}
+```
+
+**JWT/Cookie Storage:** PostgreSQL via Auth.js v5 adapter (white-label, zero external auth service)
+
+---
+
+### 6. ZOD VALIDATION RULES
+
+**Tenant**
+- `slug`: min 3, max 50 chars, lowercase alphanumeric + hyphens, regex: `^[a-z0-9]+(?:-[a-z0-9]+)*$`, must be unique in DB (async validation)
+- `name`: min 1, max 100 chars
+- `contactEmail`: valid email format
+- `status`: enum validation (active | suspended | trial)
+
+**User**
+- `email`: valid email format, unique in DB (per tenant for non-super_admin)
+- `name`: min 1, max 100 chars
+- `role`: enum validation
+- `password` (during setup): min 8 chars, must contain uppercase, lowercase, digit, special char (when set via setup link)
+- `hashedPassword`: never exposed in API, always hashed
+
+**Product**
+- `productCode`: min 1, max 50 chars, unique per tenant, alphanumeric + special chars allowed, no leading/trailing spaces
+- `barcodeValue`: min 1, max 50 chars, unique per tenant, no validation on format (accepts any barcode type)
+- `name`: min 1, max 200 chars
+- `category`: min 1, max 100 chars (optional but recommended)
+- `unit`: min 1, max 20 chars (e.g., "pcs", "kg", "liters")
+- `supplierCost`: >= 0, decimal (6,2), required
+- `markupPercent`: >= 0, <= 999.99, decimal (5,2), default 0
+- `lowStockThreshold`: >= 0, integer, default 0
+- `serialTrackingEnabled`: boolean, default false
+- Duplicate check: (tenantId, productCode) must be unique
+- Duplicate check: (tenantId, barcodeValue) must be unique
+
+**Supplier**
+- `name`: min 1, max 200 chars, required
+- `contactPerson`: min 0, max 100 chars, optional
+- `phone`: min 0, max 20 chars, optional (no format validation)
+- `email`: valid email format or empty, optional
+- `address`: min 0, max 500 chars, optional
+- `notes`: min 0, max 1000 chars, optional
+
+**PurchaseOrder**
+- `poNumber`: min 
+
+_**Agent - sidechain (claude-haiku-4-5-20251001 2026-04-03 06:05:07Z)**_
+
+Perfect. I now have both files completely read. Let me provide a comprehensive report with all the detail you requested.
+
+---
+
+## COMPREHENSIVE ENTITY MODEL & API STRUCTURE REPORT
+
+### 1. ENTITIES WITH COMPLETE FIELD DEFINITIONS
+
+#### **Platform-Level Entities (No tenantId)**
+
+**Tenant**
+- `id`: UUID (primary key)
+- `name`: string (required)
+- `slug`: string (unique, auto-generated from name, editable with real-time uniqueness validation)
+- `contactEmail`: string (required)
+- `status`: enum `active | suspended | trial` (default: trial)
+- `createdAt`: DateTime
+- `updatedAt`: DateTime
+- **Relationships**: 1:N to User (inverse), 1:N to all tenant-scoped entities
+
+**User**
+- `id`: UUID (primary key)
+- `tenantId`: UUID | null (null only for super_admin, otherwise required FK to Tenant)
+- `name`: string (required)
+- `email`: string (required, unique per tenant when tenantId is not null)
+- `hashedPassword`: string (hashed via Auth.js v5 — never plain text)
+- `role`: enum `super_admin | admin | warehouse_staff | purchasing_staff` (required)
+- `isActive`: boolean (users disabled, never hard-deleted)
+- `lastLoginAt`: DateTime | null
+- `createdAt`: DateTime
+- `updatedAt`: DateTime
+- **Relationships**: N:1 to Tenant (optional), 1:N to AuditLog (as actorUserId), 1:N to StockIn (as receivedByUserId), 1:N to StockOut (as releasedByUserId), 1:N to StockAdjustment (as createdByUserId or approvedByUserId), 1:N to StockMovementLog (as performedByUserId), 1:N to PurchaseOrder (as createdByUserId), 1:N to LowStockNotificationLog (as notifiedToUserId)
+
+**VerificationToken** (Auth.js v5 schema — for setup links)
+- `identifier`: string (user email — primary key part 1)
+- `token`: string (hashed — primary key part 2)
+- `expires`: DateTime (24-hour expiry from creation)
+- **Usage**: One-time setup link for new tenant admins. Invalid after first use or after 24h, whichever comes first. Token is consumed immediately upon use. Stored hashed in DB.
+
+---
+
+#### **Tenant-Scoped Entities (All have tenantId, enforced by RLS)**
+
+**Product**
+- `id`: UUID (primary key)
+- `tenantId`: UUID (required FK to Tenant, indexed)
+- `productCode`: string (required, unique per tenant with tenantId composite)
+- `barcodeValue`: string (required, unique per tenant with tenantId composite)
+- `name`: string (required)
+- `category`: string (required)
+- `unit`: string (required — e.g., "piece", "box", "kg")
+- `supplierCost`: decimal (required, >= 0)
+- `markupPercent`: decimal (required, >= 0)
+- `sellingPrice`: decimal (computed: `supplierCost + (supplierCost * markupPercent / 100)`, system-managed, never directly edited)
+- `currentQuantity`: integer (system-managed only, never directly editable, default 0, never negative)
+- `lowStockThreshold`: integer (required, >= 0)
+- `serialTrackingEnabled`: boolean (default false)
+- `isActive`: boolean (default true)
+- `createdAt`: DateTime
+- `updatedAt`: DateTime
+- **Relationships**: 1:N to SerialNumber, 1:N to StockInItem, 1:N to StockOutItem, 1:N to StockAdjustmentItem, 1:N to StockMovementLog, 1:N to LowStockNotificationLog, N:N to PurchaseOrder (via PurchaseOrderItem)
+- **Validation Rules**: productCode and barcodeValue uniqueness checked at DB + app layer before save; sellingPrice auto-computed before save; currentQuantity protected from direct assignment; lowStockThreshold >= 0
+
+**Supplier**
+- `id`: UUID (primary key)
+- `tenantId`: UUID (required FK to Tenant, indexed)
+- `name`: string (required)
+- `contactPerson`: string (optional)
+- `phone`: string (optional)
+- `email`: string (optional)
+- `address`: string (optional)
+- `notes`: string (optional)
+- `isActive`: boolean (default true)
+- `createdAt`: DateTime
+- `updatedAt`: DateTime
+- **Relationships**: 1:N to PurchaseOrder
+
+**PurchaseOrder**
+- `id`: UUID (primary key)
+- `tenantId`: UUID (required FK to Tenant, indexed)
+- `poNumber`: string (required, unique per tenant with tenantId composite)
+- `supplierId`: UUID (required FK to Supplier, indexed)
+- `orderDate`: DateTime (required)
+- `expectedDate`: DateTime (required)
+- `status`: enum `draft | ordered | partially_received | received | cancelled` (default: draft)
+- `notes`: string (optional)
+- `attachmentUrl`: string (optional, S3/MinIO path)
+- `createdByUserId`: UUID (required FK to User, indexed)
+- `createdAt`: DateTime
+- `updatedAt`: DateTime
+- **Relationships**: 1:N to PurchaseOrderItem, N:1 to Supplier, N:1 to User (createdBy), 0:N to StockIn (optional FK)
+- **Validation Rules**: poNumber uniqueness per tenant; must have at least 1 PurchaseOrderItem before save; status transitions validated (draft → ordered → partially_received → received or cancelled from any state)
+
+**PurchaseOrderItem**
+- `id`: UUID (primary key)
+- `purchaseOrderId`: UUID (required FK to PurchaseOrder, indexed)
+- `productId`: UUID (required FK to Product, indexed)
+- `orderedQty`: integer (required, > 0)
+- `receivedQty`: integer (default 0, updated as StockIn items link to this PO)
+- `supplierCostSnapshot`: decimal (required, snapshot of Product.supplierCost at PO creation time, immutable)
+- **Relationships**: N:1 to PurchaseOrder, N:1 to Product
+
+**StockIn**
+- `id`: UUID (primary key)
+- `tenantId`: UUID (required FK to Tenant, indexed)
+- `referenceNumber`: string (required, unique per tenant with tenantId composite, auto-generated or user-provided)
+- `purchaseOrderId`: UUID (optional FK to PurchaseOrder, indexed)
+- `receivedDate`: DateTime (required)
+- `receivedByUserId`: UUID (required FK to User, indexed)
+- `notes`: string (optional)
+- `attachmentUrl`: string (optional, delivery receipt file)
+- `createdAt`: DateTime
+- **Relationships**: 1:N to StockInItem, 0:1 to PurchaseOrder, N:1 to User
+
+**StockInItem**
+- `id`: UUID (primary key)
+- `stockInId`: UUID (required FK to StockIn, indexed)
+- `productId`: UUID (required FK to Product, indexed)
+- `quantity`: integer (required, > 0)
+- `supplierCostSnapshot`: decimal (required, snapshot at receipt time)
+- **Relationships**: N:1 to StockIn, N:1 to Product, 1:N to SerialNumber (if serialTrackingEnabled)
+- **Trigger**: Links SerialNumber records to this StockInItem when received
+
+**StockOut**
+- `id`: UUID (primary key)
+- `tenantId`: UUID (required FK to Tenant, indexed)
+- `referenceNumber`: string (required, unique per tenant with tenantId composite)
+- `releasedDate`: DateTime (required)
+- `releasedByUserId`: UUID (required FK to User, indexed)
+- `requestedByName`: string (required, who requested the stock release)
+- `usedFor`: string (required, purpose/project code)
+- `notes`: string (optional)
+- `printableSlipNumber`: string (immutable, format SO-XXXXX, auto-generated, unique per tenant, never reset, counter always increases)
+- `createdAt`: DateTime
+- **Relationships**: 1:N to StockOutItem, N:1 to User
+- **Validation Rules**: At least 1 StockOutItem required; printableSlipNumber auto-generated at creation using per-tenant counter stored in system config or separate table
+- **Key Rule**: printableSlipNumber is immutable and formatted as 'SO-' + zero-padded 5-digit sequential number per tenant (e.g., SO-00001, SO-00002). Counter never resets, numbers always increase. Unique per tenant.
+
+**StockOutItem**
+- `id`: UUID (primary key)
+- `stockOutId`: UUID (required FK to StockOut, indexed)
+- `productId`: UUID (required FK to Product, indexed)
+- `quantity`: integer (required, > 0, must be <= available in_stock serials if serialTrackingEnabled)
+- `sellingPriceSnapshot`: decimal (required, snapshot at release time)
+- **Relationships**: N:1 to StockOut, N:1 to Product, 1:N to SerialNumber (if serialTrackingEnabled)
+
+**SerialNumber**
+- `id`: UUID (primary key)
+- `tenantId`: UUID (required FK to Tenant, indexed)
+- `productId`: UUID (required FK to Product, indexed)
+- `serialValue`: string (required, the actual serial/asset tag)
+- `barcodeValue`: string (optional, barcode specific to this serial)
+- `status`: enum `in_stock | issued | adjusted` (default: in_stock)
+- `stockInItemId`: UUID (optional FK to StockInItem, indexed, set when received)
+- `stockOutItemId`: UUID (optional FK to StockOutItem, indexed, set when issued)
+- `createdAt`: DateTime
+- `updatedAt`: DateTime
+- **Relationships**: N:1 to Product, N:1 to StockInItem (optional), N:1 to StockOutItem (optional), N:1 to StockAdjustmentItem (implicit via backref)
+- **Unique Constraint**: [tenantId, productId, serialValue] composite unique
+- **Validation Rules**: serialValue must be unique per product per tenant; duplicate check runs before save; status transitions: in_stock → issued or adjusted; cannot re-issue an issued serial; immutable once issued
+
+**StockAdjustment**
+- `id`: UUID (primary key)
+- `tenantId`: UUID (required FK to Tenant, indexed)
+- `adjustmentDate`: DateTime (required)
+- `reason`: string (required, enum or free-text: "recount", "damage", "theft", "correction", "other")
+- `notes`: string (optional, detailed explanation)
+- `createdByUserId`: UUID (required FK to User, indexed)
+- `approvedByUserId`: UUID (optional FK to User, indexed, audit trail only — not blocking)
+- `createdAt`: DateTime
+- **Relationships**: 1:N to StockAdjustmentItem, N:1 to User (createdBy, approvedBy)
+- **Validation Rules**: At least 1 StockAdjustmentItem required; reason required; adjustment may not result in negative stock for any product
+
+**StockAdjustmentItem**
+- `id`: UUID (primary key)
+- `stockAdjustmentId`: UUID (required FK to StockAdjustment, indexed)
+- `productId`: UUID (required FK to Product, indexed)
+- `quantityDelta`: integer (required, can be positive or negative, cannot result in negative Product.currentQuantity)
+- `serialNumberId`: UUID (optional FK to SerialNumber, indexed, for serial-tracked items)
+- **Relationships**: N:1 to StockAdjustment, N:1 to Product, 0:1 to SerialNumber
+- **Validation Rules**: Resulting stock after delta must be >= 0; if product is serialTrackingEnabled, serialNumberId must be provided and match product; delta validation at transaction level
+
+**StockMovementLog** (IMMUTABLE)
+- `id`: UUID (primary key)
+- `tenantId`: UUID (required FK to Tenant, indexed)
+- `productId`: UUID (required FK to Product, indexed)
+- `movementType`: enum `stock_in | stock_out | adjustment` (required)
+- `referenceType`: string (required, e.g., "StockIn", "StockOut", "StockAdjustment")
+- `referenceId`: UUID (required, ID of StockIn/Out/Adjustment record)
+- `quantityBefore`: integer (required, currentQuantity before movement)
+- `quantityDelta`: integer (required, amount added/removed)
+- `quantityAfter`: integer (required, currentQuantity after movement)
+- `serialNumberId`: UUID (optional FK to SerialNumber, indexed, for tracking individual serials)
+- `performedByUserId`: UUID (required FK to User, indexed)
+- `requestedByName`: string (optional, from StockOut or adjustment)
+- `usedFor`: string (optional, from StockOut)
+- `performedAt`: DateTime (required, when the movement occurred)
+- `notes`: string (optional)
+- `createdAt`: DateTime (locked — matches performedAt)
+- **No Update/Delete**: All fields immutable after creation
+- **Relationships**: N:1 to Product, N:1 to User, 0:1 to SerialNumber
+- **Trigger**: Created automatically on every stock movement (stock in, stock out, adjustment)
+
+**AuditLog** (IMMUTABLE)
+- `id`: UUID (primary key)
+- `tenantId`: UUID (optional FK to Tenant, indexed, null for platform-level super_admin actions)
+- `actorUserId`: UUID (required FK to User, indexed, the user who performed the action)
+- `actionType`: enum | string (required, e.g., "CREATE", "UPDATE", "DELETE", "SUSPEND_TENANT", "IMPERSONATE_START", "IMPERSONATE_END", "LOGIN", "EXPORT")
+- `entityType`: string (required, e.g., "Product", "User", "PurchaseOrder", "StockIn", "Tenant")
+- `entityId`: UUID (required, ID of the entity being acted upon)
+- `fieldChangesJson`: JSON (optional, object of field diffs for UPDATE actions: {fieldName: {before: value, after: value}})
+- `beforeStateJson`: JSON (optional, full entity state before UPDATE)
+- `afterStateJson`: JSON (optional, full entity state after UPDATE)
+- `createdAt`: DateTime
+- **No Update/Delete**: All fields immutable after creation
+- **Relationships**: N:1 to Tenant (optional), N:1 to User
+- **Created By**: Every important action: tenant create/suspend/reactivate, user create/update/role-change/disable, login, product create/update/pricing/threshold, supplier create/update, PO create/status-change, stock in, stock out, adjustment, serial creation/status-change, file upload/removal, report export, impersonation start/end, every quantity-affecting movement
+- **Logging Pattern**: All mutations + important queries + auth events
+
+**LowStockNotificationLog**
+- `id`: UUID (primary key)
+- `tenantId`: UUID (required FK to Tenant, indexed)
+- `productId`: UUID (required FK to Product, indexed)
+- `notifiedToUserId`: UUID (required FK to User, indexed)
+- `sentAt`: DateTime (required, when notification was sent)
+- `status`: enum `sent | failed | retried` (default: sent)
+- **Relationships**: N:1 to Tenant, N:1 to Product, N:1 to User
+
+---
+
+### 2. ENUMS & UNION TYPES
+
+**User Roles** (global, same set across all tenants)
+- `super_admin`: Platform operator, manages tenants, impersonates admins
+- `admin`: Tenant admin, manages users, products, suppliers, POs, stock, adjustments, audit logs, reports
+- `warehouse_staff`: Warehouse worker, scans/logs stock in/out, views product info (no pricing), views stock movement logs, views reports
+- `purchasing_staff`: Procurement specialist, manages suppliers, POs, stock in (read-only stock out), views all pricing, views reports
+
+**Tenant Status**
+- `active`: Tenant operational
+- `suspended`: Tenant temporarily offline (prevents all user operations)
+- `trial`: Initial state for new tenants
+
+**Product Unit** (suggested values, extensible)
+- "piece", "box", "pallet", "kg", "liter", "meter", "hour", etc. (free-text field)
+
+**Adjustment Reason** (suggested enum or free-text)
+- `recount`: Physical inventory recount correction
+- `damage`: Stock damaged or spoiled
+- `theft`: Missing inventory
+- `correction`: System correction
+- `other`: Other reason with notes
+
+**PurchaseOrder Status**
+- `draft`: Being created, not yet submitted
+- `ordered`: Submitted to supplier
+- `partially_received`: Some items received
+- `received`: All items received
+- `cancelled`: PO cancelled (can be cancelled from any state)
+
+**SerialNumber Status**
+- `in_stock`: Serial is physically available
+- `issued`: Serial was released to warehouse staff (stock out)
+- `adjusted`: Serial was involved in adjustment (status change, moved to different location, etc.)
+
+**StockMovement Type**
+- `stock_in`: Incoming stock (receiving/purchase)
+- `stock_out`: Outgoing stock (issued to warehouse)
+- `adjustment`: Inventory correction
+
+**LowStockNotification Status**
+- `sent`: Email notification sent successfully
+- `failed`: Email send attempt failed
+- `retried`: Retried after initial failure
+
+---
+
+### 3. USER ROLES & PERMISSIONS MATRIX
+
+| Role | Scope | Can Do | Cannot Do |
+|------|-------|--------|-----------|
+| **super_admin** | Platform-wide | Create tenants, suspend/reactivate tenants, view cross-tenant metrics, impersonate tenant admins (read-only), create first admin user for new tenant, view platform audit logs | Cannot see tenant business data (products, stock, POs), cannot edit products/stock, cannot hard-delete tenants, cannot access /[tenant-slug]/* routes |
+| **admin** | Tenant-scoped | Create/update/disable users, create/edit products, view/edit all pricing, manage suppliers, manage POs, create stock in/out/adjustments, view audit logs (own tenant), view/export reports, assign roles to users | Cannot see other tenants, cannot manage platform, cannot hard-delete users/products, cannot directly edit currentQuantity, cannot see platform audit logs |
+| **warehouse_staff** | Tenant-scoped | View products (selling price only, no supplier cost/markup), create stock in, create stock out, view stock movement logs, view/export reports, scan barcodes | Cannot view supplier cost or markup, cannot manage users/suppliers/POs/adjustments, cannot view audit logs, cannot see pricing details, cannot access adjustments or supplier modules |
+| **purchasing_staff** | Tenant-scoped | View products with full pricing, manage suppliers, manage POs, create stock in, view stock out (read-only, cannot create), view stock movement logs, view/export reports | Cannot create stock out, cannot manage users or adjustments, cannot view audit logs, cannot see other tenants |
+
+**Key Rules:**
+- Impersonation when `session.isImpersonating = true`: All mutations return FORBIDDEN (server-side middleware), UI disables all action buttons/forms, banner shown at top
+- Role-based tRPC middleware enforces access to all procedures
+- Tenant isolation: Users cannot query/modify other tenants' data (enforced at L1: session tenantId, L2: Prisma middleware, L3: RLS)
+
+---
+
+### 4. TRPC API STRUCTURE (Routers & Procedures)
+
+```
+trpc
+├── auth
+│   ├── login (POST, public)
+│   ├── logout (POST)
+│   ├── setupAccount (POST, public, requires valid setup token)
+│   ├── resetPassword (POST)
+│   └── getCurrentSession (GET)
+│
+├── platform (super_admin only)
+│   ├── tenants
+│   │   ├── list (GET, filter by status, search by name/slug)
+│   │   ├── create (POST, slug uniqueness check required)
+│   │   ├── get (GET, by id)
+│   │   ├── suspend (POST, id)
+│   │   ├── reactivate (POST, id)
+│   │   ├── createFirstAdminUser (POST, tenantId, name, email)
+│   │   └── metrics (GET, returns KPIs across all tenants)
+│   │
+│   ├── audit-logs
+│   │   ├── list (GET, filter by action, entity, user, date)
+│   │   ├── get (GET, by id)
+│   │   └── export (GET, returns CSV stream)
+│   │
+│   └── impersonation
+│       ├── start (POST, tenantId, startImpersonation flag to session)
+│       └── end (POST, clearImpersonating flag from session)
+│
+├── tenant (all tenant-scoped routes require tenantId from session)
+│   ├── products
+│   │   ├── list (GET, search, filter, sort, pagination)
+│   │   ├── create (POST, admin only, auto-calc sellingPrice)
+│   │   ├── update (POST, admin only, recalc sellingPrice if pricing changed)
+│   │   ├── get (GET, by id)
+│   │   ├── delete (POST, soft disable via isActive flag, admin only)
+│   │   ├── getLowStock (GET, returns products where currentQuantity <= lowStockThreshold)
+│   │   └── validateProductCode (GET, real-time uniqueness check for slug input)
+│   │
+│   ├── suppliers
+│   │   ├── list (GET, admin + purchasing_staff, search, filter)
+│   │   ├── create (POST, admin + purchasing_staff)
+│   │   ├── update (POST, admin + purchasing_staff)
+│   │   ├── get (GET, admin + purchasing_staff)
+│   │   └── delete (POST, soft disable, admin only)
+│   │
+│   ├── purchase-orders
+│   │   ├── list (GET, admin + purchasing_staff, filter by status)
+│   │   ├── create (POST, admin + purchasing_staff, attachment optional)
+│   │   ├── update (POST, admin + purchasing_staff)
+│   │   ├── get (GET, admin + purchasing_staff)
+│   │   ├── updateStatus (POST, admin + purchasing_staff)
+│   │   └── lineItems
+│   │       ├── list (GET, by PO id)
+│   │       └── add (POST, productId, quantity)
+│   │
+│   ├── stock-in
+│   │   ├── list (GET, all roles, filter by date, product, user)
+│   │   ├── create (POST, all roles, validates quantities, links serials)
+│   │   ├── get (GET, all roles)
+│   │   ├── validateBarcode (GET, real-time barcode lookup)
+│   │   └── linkToPurchaseOrder (POST, optional PO association)
+│   │
+│   ├── stock-out
+│   │   ├── list (GET, all roles, filter)
+│   │   ├── create (POST, all roles, validates stock + serials)
+│   │   ├── get (GET, all roles)
+│   │   ├── getPrintableSlip (GET, returns formattable PDF/HTML)
+│   │   ├── validateBarcode (GET, real-time barcode lookup)
+│   │   ├── getAvailableSerials (GET, productId, returns in_stock serials only)
+│   │   └── validateQuantity (GET, productId, quantity, checks available stock)
+│   │
+│   ├── adjustments
+│   │   ├── list (GET, admin only, filter by reason, date)
+│   │   ├── create (POST, admin only, validates serials + resulting stock)
+│   │   ├── get (GET, admin only)
+│   │   └── approveAdjustment (POST, admin only, optional — audit trail, not blocking)
+│   │
+│   ├── stock-movement-logs
+│   │   ├── list (GET, all roles, filter by date, product, type, user)
+│   │   ├── get (GET, all roles, by id)
+│   │   └── export (GET, CSV stream)
+│   │
+│   ├── audit-logs
+│   │   ├── list (GET, admin only, filter by action, entity, user, date)
+│   │   ├── get (GET, admin only, by id)
+│   │   └── export (GET, admin only, CSV stream)
+│   │
+│   ├── dashboard
+│   │   ├── getKPIs (GET, all roles, period: today|this_week|this_month|custom, returns summary cards)
+│   │   ├── getStockChart (GET, all roles, period, returns bar chart data)
+│   │   ├── getLowStockAlert (GET, all roles, returns banner alert if any products below threshold)
+│   │   └── getInventoryValue (GET, admin + purchasing_staff only, returns total value calculation)
+│   │
+│   ├── reports
+│   │   ├── getLowStockReport (GET, all roles, returns filtered product list)
+│   │   ├── getStockMovementReport (GET, all roles, filter by date, product, type, user)
+│   │   ├── getCurrentInventoryReport (GET, all roles)
+│   │   ├── getProductHistoryReport (GET, all roles, productId)
+│   │   ├── getAuditTrailReport (GET, admin only)
+│   │   └── exportToCSV (GET, all roles, entityType, filters, returns CSV stream)
+│   │
+│   ├── users
+│   │   ├── list (GET, admin only, shows tenant users only)
+│   │   ├── create (POST, admin only, generates setup token)
+│   │   ├── update (POST, admin only)
+│   │   ├── get (GET, admin only)
+│   │   ├── disable (POST, admin only, soft delete via isActive flag)
+│   │   ├── resetPassword (POST, admin only, generates reset token)
+│   │   └── changeRole (POST, admin only)
+│   │
+│   ├── serials (if product.serialTrackingEnabled)
+│   │   ├── list (GET, by productId)
+│   │   ├── get (GET, by id)
+│   │   └── validateSerial (GET, productId, serialValue, checks uniqueness)
+│   │
+│   └── files
+│       ├── upload (POST, attachment upload, rate-limited to 10/min)
+│       └── getSignedUrl (GET, retrieve file URL for viewing/download)
+```
+
+**Middleware Stacks:**
+- All `/tenant/*` procedures: `requireAuth -> tenantIsolation -> roleBasedAccess`
+- All mutations when `session.isImpersonating = true`: Return FORBIDDEN before execution
+- All procedures: `rateLimiter` middleware (60/min public, 300/min auth, 10/min upload)
+
+---
+
+### 5. AUTH SESSION FIELDS (Auth.js v5)
+
+```typescript
+Session {
+  userId: UUID;
+  tenantId: UUID | null;           // null for super_admin, required for tenant users
+  roles: string[];                  // array: ["admin"] or ["warehouse_staff"] etc
+  name: string;
+  email: string;
+  isImpersonating: boolean;         // true when super_admin is viewing as tenant admin
+  impersonatedTenantId?: UUID;      // tenant being impersonated (when isImpersonating = true)
+  impersonatedTenantName?: string;  // for display in banner
+  // Implicit from Auth.js:
+  // - sessionToken (secure, httpOnly, signed)
+  // - expires (session expiry timestamp)
+  // - createdAt (session creation time)
+}
+```
+
+**Storage**: PostgreSQL table `sessions` (Auth.js v5 default schema), rows never hard-deleted, marked inactive instead
+
+---
+
+### 6. ZOD VALIDATION RULES MENTIONED
+
+From PRODUCT.md and inputs.yml:
+
+**Tenant**
+- `name`: required string, min 1 char, max 100 chars
+- `slug`: required string, lowercase, hyphens only (no spaces/special chars), unique (real-time validation), min 3 chars, max 50 chars, editable with inline error message: "This slug is already taken — please choose another"
+- `contactEmail`: required email format
+
+**Product**
+- `productCode`: required string, unique per tenant, min 1 char, max 50 chars
+- `barcodeValue`: required string, unique per tenant, min 1 char, max 100 chars
+- `name`: required string, min 1 char, max 200 chars
+- `category`: required string
+- `unit`: required string
+- `supplierCost`: required decimal >= 0
+- `markupPercent`: required decimal >= 0
+- `lowStockThreshold`: required integer >= 0
+- `serialTrackingEnabled`: boolean, default false
+
+**SerialNumber**
+- `serialValue`: required string, unique [tenantId, productId, serialValue], min 1 char, max 100 chars
+- Duplicate check runs before save with error: "This serial is already registered for this product"
+
+**User**
+- `email`: required, valid email format, unique per tenant (when tenantId not null)
+- `name`: required string, min 1 char, max 100 chars
+- `password`: required (on setup), min 8 chars, complexity rules TBD (suggest: 1 uppercase, 1 digit, 1 special char)
+
+**File Upload** (MinIO / S3)
+- `maxFileSize`: 10 MB
+- `allowedMimeTypes`: ["application/pdf", "image/jpeg", "image/png"]
+- `rateLimit`: 10 files per minute per user
+
+**PurchaseOrder**
+- `poNumber`: required string, unique per tenant, min 1 char, max 50 chars
+- Must have at least 1 PurchaseOrderItem before save
+
+**StockIn / StockOut / Adjustment**
+- `referenceNumber`: required string, unique per tenant
+- `quantity`: required integer > 0
+- `requestedByName`: required string (StockOut), min 1 char, max 100 chars
+- `usedFor`: required string (StockOut), min 1 char, max 200 chars
+- `reason`: required enum or string (Adjustment)
+- Must have at least 1 line item before save
+
+**Rate Limiting** (inputs.yml)
+- Public endpoints: 60 requests/min per IP
+- Authenticated endpoints: 300 requests/min per user
+- File upload: 10 uploads/min per user
+
+---
+
+### 7. TENANCY MODEL DETAILS
+
+**Mode**: Multi-tenant (multiple isolated companies)
+
+**Routing**: Subdirectory-based
+- URL pattern: `app.com/[tenant-slug]/dashboard`, `app.com/[tenant-slug]/products`, etc.
+- Slug is permanent after creation (cannot be changed)
+- Slug generation: auto-generated from tenant name, editable with real-time uniqueness check
+- URL preview shown during creation: "inventorize.powerbyte.app/[slug]/dashboard"
+
+**Database Isolation**:
+- Shared schema + `tenantId` column on all tenant-scoped tables (Layer 2)
+- PostgreSQL RLS policies enforce row-level access (Layer 3, defense-in-depth)
+- All queries automatically filtered by tenantId via Prisma middleware (Layer 1)
+- No separate database per tenant, no schema isolation needed
+
+**Tenant-Scoped Data**:
+- All business data (products, suppliers, POs, stock movements, adjustments, serials, audit logs, notifications)
+- User roles are global (same set across all tenants: admin, warehouse_staff, purchasing_staff)
+- Each user assigned to 1 tenant (via tenantId FK)
+- super_admin has no tenantId (platform operator, never views tenant data directly)
+
+**Shared Global Data**: None
+- No cross-tenant shared data
+- All reports, exports, dashboards are tenant-scoped
+
+**Tenant Lifecycle**:
+- Status: `active | suspended | trial`
+- Suspended tenants: all user operations blocked (users cannot login, mutations forbidden)
+- No hard deletion: suspended/inactive tenants kept 7 years minimum for audit
+- Suspension trigger: super_admin action, creates AuditLog entry at platform level
+
+**Slug Uniqueness**:
+- Enforced at database level (unique constraint on Tenant.slug)
+- Real-time validation API: `tenant.validateSlug(slug)` returns {available: boolean}
+- Form shows inline error if slug taken, save button blocked
+- Uniqueness check runs as super_admin types (debounced)
+
+---
+
+### 8. IMPERSONATION DETAILS
+
+**Trigger**: Super admin on platform, selects a tenant to "view as" (support/debugging mode)
+
+**Server-Side Enforcement**:
+- Session flag: `session.isImpersonating = true`
+- All tRPC mutations check this flag: if true, return FORBIDDEN immediately (before DB operation)
+- Platform AuditLog created for each impersonation start/end event with:
+  - `actionType`: "IMPERSONATE_START" or "IMPERSONATE_END"
+  - `tenantId`: impersonated tenant ID
+  - `actorUserId`: super_admin user ID
+  - `impersonatedTenantId`: the tenant being viewed
+
+**Client-Side Enforcement**:
+- Persistent banner at top of every page: "View Only — Impersonating [Tenant Name]"
+- All action buttons (create, edit, delete, export) disabled
+- All form submissions disabled
+- Read-only mode: users can view data but cannot modify anything
+
+**Page Visit Logging**:
+- Every page visited during impersonation creates AuditLog entry:
+  - `actionType`: "PAGE_VIEW"
+  - `entityType`: "Page"
+  - `entityId`: route path (e.g., "/products", "/stock-in")
+
+**Exit**:
+- Super admin clicks "Exit Impersonation" button
+- Session flag cleared: `session.isImpersonating = false`
+- Redirect back to /platform/tenants or /platform/metrics
+
+---
+
+### 9. KEY BUSINESS LOGIC RULES (CRITICAL)
+
+1. **Product.sellingPrice**: Always computed as `supplierCost + (supplierCost * markupPercent / 100)`. Never directly editable. Recalculated on each product save if supplierCost or markupPercent changed.
+
+2. **Product.currentQuantity**: System-managed only. Never directly editable via API or form. Only changes via stock in/out/adjustment transactions. Snapshot values (supplierCostSnapshot, sellingPriceSnapshot) stored on line items, not product pricing.
+
+3. **Stock Non-Negativity**: currentQuantity can never go negative. Any transaction that would result in negative stock is blocked with error and fully rolled back. Validated at DB transaction level + app layer.
+
+4. **Atomic Transactions**: All quantity-affecting operations (stock in, stock out, adjustment) are atomic:
+   - Update Product.currentQuantity
+   - Create StockMovementLog entry
+   - Create AuditLog entry
+   - Update related PO status (if applicable)
+   - All must succeed or all rollback
+
+5. **Serial Tracking**: Only applies when Product.serialTrackingEnabled = true.
+   - SerialNumber.serialValue must be unique [tenantId, productId]
+   - Duplicate serial → block with error message
+   - Serial can only transition: in_stock → issued or adjusted
+   - Cannot re-issue an issued serial
+   - StockOut must have matching count of in_stock serials
+
+6. **StockMovementLog**: Immutable audit trail. Created on every quantity change with before/after values. Never updated or deleted.
+
+7. **AuditLog**: Immutable audit trail. Created for all mutations and auth events. Never updated or deleted. Searchable by action, entity, user, date.
+
+8. **Purchase Order Lifecycle**: draft → ordered → partially_received → received. Can be cancelled from any state.
+
+9. **Printable Slip Number**: Format SO-XXXXX (5-digit zero-padded, e.g., SO-00001). Auto-generated at StockOut creation. Immutable. Unique per tenant. Counter never resets, numbers only ever increase.
+
+10. **Low Stock Monitoring**: Daily job (0 0 * * * UTC) per tenant checks products where currentQuantity <= lowStockThreshold. Creates alert + email to admin + purchasing_staff. Uses LowStockNotificationLog to track sent notifications.
+
+11. **Impersonation**: When session.isImpersonating = true, all mutations return FORBIDDEN. Client UI disables all action buttons. Banner shown on every page.
+
+12. **User Lifecycle**: Users disabled (isActive = false), never hard-deleted. 7-year retention minimum.
+
+13. **Tenant Lifecycle**: Tenants suspended or reactivated, never hard-deleted. 7-year retention minimum.
+
+---
+
+### 10. DEPLOYMENT & ENVIRONMENTS
+
+**Environments**: dev, staging, prod
+
+**Dev Mode**: WSL2 native (pre-locked, no port assignment specified — Phase 3 assigns it)
+
+**Ports** (dev/docker-compose):
+- PostgreSQL: 44874
+- PgBouncer: 44875
+- Redis/Valkey: 44876
+- MinIO: 44877
+- MinIO Console: 44878
+- MailHog SMTP: 44879
+- MailHog UI: 44880
+- pgAdmin: 44881
+- Next.js App: 44884
+- BullMQ Worker: 44885
+- Prisma Studio: 44894
+
+**Docker Stack**:
+- Next.js (web server + tRPC API)
+- PostgreSQL (RLS-enabled)
+- Valkey (cache + BullMQ)
+- MinIO (S3-compatible storage)
+- pgAdmin (DB management)
+- PgBouncer (connection pooling, per-tenant limits)
+
+**Domains**:
+- Dev: `http://localhost:[assigned port]`
+- Staging: `https://inventorize-staging.powerbyte.app`
+- Prod: `https://inventorize.powerbyte.app`
+
+**CORS**:
+- Dev: `localhost:*`
+- Staging: `https://inventorize-staging.powerbyte.app`
+- Prod: `https://inventorize.powerbyte.app`
+
+---
+
+### 11. JOBS & BACKGROUND TASKS
+
+**BullMQ Queue Configuration**:
+- `low-stock-check`: Cron `0 0 * * *` (daily at 00:00 UTC)
+  - Per-tenant iteration: loops through all active tenants
+  - Checks products where currentQuantity <= lowStockThreshold
+  - Triggers email notification job
+  - Creates LowStockNotificationLog entry
+  - Error handling: retry 3× with exponential backoff
+
+- `email-notifications`: Event-driven (no cron)
+  - Triggered by: low-stock-check job, user signup (welcome email), password reset
+  - Uses SMTP (SES in prod, MailHog in dev)
+  - Sends to: tenant admin + purchasing_staff (low stock), tenant admin (welcome), user (password reset)
+  - Error handling: retry 3× with exponential backoff, log failure status
+
+---
+
+### 12. PRODUCTION MIGRATION PATH
+
+When scaling from Docker Compose to AWS/managed services:
+- PostgreSQL: RDS (managed, RLS-enabled)
+- S3: AWS S3 (S3-compatible config, no code changes)
+- Redis/Valkey: ElastiCache (managed)
+- Email: SES (SMTP endpoint swap, .env update only)
+- PgBouncer: Managed by RDS or self-hosted
+- Credentials: `.env.{env}` files only, zero code changes required
+
+---
+
+## SUMMARY TABLE OF PACKAGES NEEDED
+
+| Package | Purpose | Key Exports |
+|---------|---------|-------------|
+| **packages/shared** | TypeScript types + Zod schemas | All entity types, enums, session type, zod validation schemas |
+| **packages/api-client** | tRPC client + hooks | Typed tRPC client instance, useQuery/useMutation hooks for all procedures |
+
+---
+
+## FILE PATHS FOR REFERENCE
+
+- Entity definitions: `/home/me/UbuntuDevFiles/1_COMPANY_DEV/CompanyApps/Inventorize/docs/PRODUCT.md` (lines 117-137)
+- Tech stack & config: `/home/me/UbuntuDevFiles/1_COMPANY_DEV/CompanyApps/Inventorize/inputs.yml`
+
+_**Agent (claude-opus-4-6 2026-04-03 06:05:13Z)**_
+
+
+
+Excellent, I have comprehensive entity details. Let me create the branch and start building.
+
+_**Agent (claude-opus-4-6 2026-04-03 06:05:13Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Create scaffold/part-2 branch
+
+`git checkout -b scaffold/part-2`
+
+```text
+Switched to a new branch 'scaffold/part-2'
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-04-03 06:05:18Z)**_
+
+Now I'll create the package structures. Let me start with `packages/shared`.
+
+_**Agent (claude-opus-4-6 2026-04-03 06:05:19Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Create package directory structures
+
+`mkdir -p packages/shared/src/{types,schemas,enums} packages/api-client/src`
+
+```text
+(Bash completed with no output)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-04-03 06:05:24Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Write"><details>
+<summary>Tool use: **Write**</summary>
+
+```json
+{
+  "name": "@inventorize/shared",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./types": "./src/types/index.ts",
+    "./schemas": "./src/schemas/index.ts",
+    "./enums": "./src/enums/index.ts"
+  },
+  "scripts": {
+    "lint": "eslint src/",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0"
+  }
+}
+
+```
+
+```text
+File created successfully at: /home/me/UbuntuDevFiles/1_COMPANY_DEV/CompanyApps/Inventorize/packages/shared/package.json
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-04-03 06:05:26Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Write"><details>
+<summary>Tool use: **Write**</summary>
+
+```json
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src"
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}
+
+```
+
+```text
+File created successfully at: /home/me/UbuntuDevFiles/1_COMPANY_DEV/CompanyApps/Inventorize/packages/shared/tsconfig.json
+```
+</details></tool-use>
