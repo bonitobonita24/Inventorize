@@ -1,7 +1,7 @@
 import { Queue } from 'bullmq';
 
-import { getRedisConnection } from '../connection.js';
-import { QUEUE_NAMES, type LowStockCheckPayload } from './types.js';
+import { getRedisConnection } from '../connection';
+import { QUEUE_NAMES, type LowStockCheckPayload } from './types';
 
 let queue: Queue<LowStockCheckPayload> | null = null;
 

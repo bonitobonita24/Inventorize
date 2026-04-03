@@ -1,4 +1,4 @@
-import { getLowStockCheckQueue } from './queues/low-stock-check.js';
+import { getLowStockCheckQueue } from './queues/low-stock-check';
 
 export async function registerScheduledJobs(): Promise<void> {
   const lowStockQueue = getLowStockCheckQueue();

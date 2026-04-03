@@ -3,7 +3,7 @@
 'use client';
 
 import { useState } from 'react';
-import { trpc } from '@/lib/trpc.js';
+import { trpc } from '@/lib/trpc';
 
 export default function UsersPage() {
   const [page] = useState(1);

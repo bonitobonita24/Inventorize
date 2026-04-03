@@ -1,4 +1,4 @@
-import { getRedisConnection } from '../connection.js';
+import { getRedisConnection } from '../connection';
 
 export async function cacheGet(tenantId: string, key: string): Promise<string | null> {
   const redis = getRedisConnection();

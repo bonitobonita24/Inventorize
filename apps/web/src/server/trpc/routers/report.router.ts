@@ -1,7 +1,7 @@
 // Report router — tenant-scoped reporting queries
 
 import { z } from 'zod';
-import { createTRPCRouter, tenantProcedure } from '../trpc.js';
+import { createTRPCRouter, tenantProcedure } from '../trpc';
 import { prisma } from '@inventorize/db';
 import { withTenantContext } from '@inventorize/db';
 

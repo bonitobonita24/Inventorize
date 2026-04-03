@@ -2,8 +2,8 @@
 
 import { initTRPC, TRPCError } from '@trpc/server';
 import superjson from 'superjson';
-import type { TRPCContext } from './context.js';
-import { rateLimiters } from '@/server/lib/rate-limit.js';
+import type { TRPCContext } from './context';
+import { rateLimiters } from '@/server/lib/rate-limit';
 
 const t = initTRPC.context<TRPCContext>().create({
   transformer: superjson,

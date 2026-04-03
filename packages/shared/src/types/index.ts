@@ -9,7 +9,7 @@ import type {
   MovementType,
   NotificationStatus,
   AdjustmentReason,
-} from '../enums/index.js';
+} from '../enums/index';
 
 // ─── Platform-level entities (no tenantId) ───────────────────
 

@@ -1,7 +1,7 @@
 import { Queue } from 'bullmq';
 
-import { getRedisConnection } from '../connection.js';
-import { QUEUE_NAMES, type EmailNotificationPayload } from './types.js';
+import { getRedisConnection } from '../connection';
+import { QUEUE_NAMES, type EmailNotificationPayload } from './types';
 
 let queue: Queue<EmailNotificationPayload> | null = null;
 

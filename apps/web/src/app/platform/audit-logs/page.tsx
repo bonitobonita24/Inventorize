@@ -2,7 +2,7 @@
 
 'use client';
 
-import { trpc } from '@/lib/trpc.js';
+import { trpc } from '@/lib/trpc';
 
 export default function PlatformAuditLogsPage() {
   const { data, isLoading } = trpc.platform.platformAuditLogs.useQuery({ page: 1, limit: 50 });

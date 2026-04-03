@@ -2,7 +2,7 @@
 
 'use client';
 
-import { trpc } from '@/lib/trpc.js';
+import { trpc } from '@/lib/trpc';
 
 export default function PlatformTenantsPage() {
   const { data, isLoading } = trpc.platform.listTenants.useQuery({ page: 1, limit: 50 });

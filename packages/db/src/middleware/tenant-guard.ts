@@ -5,7 +5,7 @@
 // any unlisted method becomes an unguarded tenant bypass.
 
 import { Prisma } from '@prisma/client';
-import { getTenantContext } from '../context.js';
+import { getTenantContext } from '../context';
 
 /** Models that are NOT tenant-scoped (system-level tables). */
 const SYSTEM_MODELS = new Set(['AuditLog', 'Tenant', 'VerificationToken']);

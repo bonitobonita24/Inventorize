@@ -2,7 +2,7 @@
 
 import { TRPCError } from '@trpc/server';
 import { initTRPC } from '@trpc/server';
-import type { TRPCContext } from '../context.js';
+import type { TRPCContext } from '../context';
 
 const t = initTRPC.context<TRPCContext>().create();
 

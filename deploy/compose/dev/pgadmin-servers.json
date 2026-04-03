@@ -1,0 +1,13 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "inventorize dev",
+      "Group": "Spec-Driven",
+      "Host": "inventorize_dev_postgres",
+      "Port": 5432,
+      "MaintenanceDB": "inventorize_dev",
+      "Username": "inventorize_14a9799a76222619ee6426",
+      "SSLMode": "prefer"
+    }
+  }
+}

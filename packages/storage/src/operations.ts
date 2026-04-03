@@ -6,13 +6,13 @@ import {
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
-import { getS3Client, getStorageConfig } from './client.js';
+import { getS3Client, getStorageConfig } from './client';
 import {
   validateMimeType,
   validateFileSize,
   generateStoragePath,
   extractTenantIdFromPath,
-} from './validation.js';
+} from './validation';
 
 export interface UploadParams {
   tenantId: string;

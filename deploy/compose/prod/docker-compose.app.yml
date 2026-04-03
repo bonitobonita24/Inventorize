@@ -1,0 +1,46 @@
+# Next.js app — production environment
+# ⚠ NO build: key — image pulled from Docker Hub only
+# Default :latest = always the newest image pushed from main branch
+# Pin to sha-{hash} for a specific version (rollback)
+networks:
+  app_network:
+    name: ${COMPOSE_PROJECT_NAME}_network
+    external: true
+
+services:
+  app:
+    image: ${DOCKERHUB_USERNAME:-bonitobonita24}/${IMAGE_NAME:-inventorize}:${APP_IMAGE_TAG:-latest}
+    container_name: ${COMPOSE_PROJECT_NAME}_app
+    hostname: ${COMPOSE_PROJECT_NAME}_app
+    env_file: ../../../.env.prod
+    environment:
+      - NODE_ENV=production
+      - PORT=${APP_PORT}
+      - DATABASE_URL=postgresql://${DB_USER}:${DB_PASSWORD}@${COMPOSE_PROJECT_NAME}_pgbouncer:5432/${DB_NAME}
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@${COMPOSE_PROJECT_NAME}_valkey:6379
+      - STORAGE_ENDPOINT=http://${COMPOSE_PROJECT_NAME}_minio:9000
+      - STORAGE_BUCKET=${STORAGE_BUCKET}
+      - STORAGE_ACCESS_KEY=${STORAGE_ACCESS_KEY}
+      - STORAGE_SECRET_KEY=${STORAGE_SECRET_KEY}
+      - STORAGE_REGION=${STORAGE_REGION}
+      - AUTH_SECRET=${AUTH_SECRET}
+      - NEXTAUTH_URL=${NEXTAUTH_URL}
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_PORT=${SMTP_PORT}
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASSWORD=${SMTP_PASSWORD}
+      - SMTP_FROM=${SMTP_FROM}
+    ports:
+      - "${APP_PORT}:3000"
+    networks: [app_network]
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
