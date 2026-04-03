@@ -101,7 +101,15 @@ mobile:
   enabled: false
 
 docker:
-  publish: false
+  publish: true
+  registry: docker.io
+  hub_repo: bonitobonita24/inventorize
+  image_name: inventorize
+  platforms:
+    - linux/amd64
+    - linux/arm64
+  build_on_push_to: main
+  dev_build: true
 
 security:
   rate_limits:

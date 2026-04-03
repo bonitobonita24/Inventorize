@@ -50,11 +50,21 @@
 
 ## Docker Image Publishing
 - Type:      🟤 decision
-- Date:      2026-04-03
-- Decision:  docker.publish: false — no Docker Hub pipeline for this project.
-- Rationale: User opted out during Phase 2 Section I. No Dockerfile or docker-publish.yml generated.
-             Deploy via pnpm build + traditional server deployment or future Feature Update.
-- Locked:    yes — to enable later, set docker.publish: true in inputs.yml and run Feature Update.
+- Date:      2026-04-03 (updated)
+- Decision:  docker.publish: true — Docker Hub pipeline enabled.
+- Registry:  docker.io (Docker Hub)
+- Repository: bonitobonita24/inventorize
+- Image name: inventorize
+- Tags:      latest (main branch) + sha-{short} (every push)
+- Platforms: linux/amd64, linux/arm64
+- Trigger:   push to main (GitHub Actions) + manual promotion (push.sh)
+- Rationale: User corrected original decision — Docker Hub publishing is required.
+- Secrets needed in GitHub repo:
+    DOCKERHUB_USERNAME — Docker Hub username (bonitobonita24)
+    DOCKERHUB_TOKEN    — Docker Hub access token (not password)
+- GitHub Actions variable needed:
+    DOCKER_IMAGE_NAME  — inventorize
+- Locked:    yes
 
 ---
 
