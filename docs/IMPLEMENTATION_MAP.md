@@ -41,11 +41,15 @@
 - [x] packages/api-client/src/index.ts (typed tRPC client factory + re-exports)
 
 ### Part 3: packages/db (Prisma)
-- [ ] prisma/schema.prisma
-- [ ] prisma/migrations/
-- [ ] prisma/seed.ts
-- [ ] AuditLog model
-- [ ] Tenant-guard middleware
+- [x] packages/db/package.json + tsconfig.json
+- [x] prisma/schema.prisma (17 models, 8 enums, full relations + tenant-scoped indexes)
+- [ ] prisma/migrations/ (deferred — requires running database for migrate dev)
+- [x] prisma/seed.ts (webmaster + demo tenant + demo users/suppliers/products)
+- [x] src/index.ts (Prisma singleton + platformPrisma + AsyncLocalStorage tenant context)
+- [x] src/context.ts (TenantContext + withTenantContext + currentTenantId/currentUserId)
+- [x] src/audit.ts (L5 immutable AuditLog write helper)
+- [x] src/middleware/tenant-guard.ts (L6 Prisma $allOperations extension)
+- [x] src/rls.ts (L2 PostgreSQL RLS helper + rlsStatements + TENANT_SCOPED_TABLES)
 
 ### Part 4: Additional packages
 - [ ] packages/ui

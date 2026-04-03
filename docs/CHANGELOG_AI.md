@@ -55,6 +55,16 @@
 - Errors encountered:  tRPC httpBatchLink type incompatibility with exactOptionalPropertyTypes
 - Errors resolved:     Used conditional spread + type assertion for httpBatchLink options
 
+## 2026-04-03 — Phase 4 Part 3: packages/db (Prisma ORM)
+- Agent:               CLAUDE_CODE
+- Why:                 Generate full ORM schema with all 17 entities, tenant-guard middleware, audit helper, RLS helper, and seed script
+- Files added:         packages/db/package.json, packages/db/tsconfig.json, packages/db/prisma/schema.prisma, packages/db/prisma/seed.ts, packages/db/src/index.ts, packages/db/src/context.ts, packages/db/src/audit.ts, packages/db/src/rls.ts, packages/db/src/middleware/tenant-guard.ts, .npmrc
+- Files modified:      package.json (removed ignoredBuiltDependencies from pnpm config), pnpm-lock.yaml
+- Files deleted:       none
+- Schema/migrations:   prisma/schema.prisma — 17 models, 8 enums, all relations, tenant-scoped indexes
+- Errors encountered:  pnpm 10 blocked Prisma postinstall via build script approval; approve-builds interactive mode added to ignoredBuiltDependencies instead of allowed
+- Errors resolved:     Removed ignoredBuiltDependencies from package.json; onlyBuiltDependencies in package.json + .npmrc resolves approval; ran npx prisma generate directly
+
 ## 2026-04-03 — Phase 4 Part 1: Root Config Files
 - Agent:               CLAUDE_CODE
 - Why:                 Generate monorepo root config files — foundation for all subsequent Parts
