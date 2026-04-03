@@ -12,6 +12,9 @@ COPY apps/web/package.json ./apps/web/
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/api-client/package.json ./packages/api-client/
 COPY packages/db/package.json ./packages/db/
+COPY packages/ui/package.json ./packages/ui/
+COPY packages/jobs/package.json ./packages/jobs/
+COPY packages/storage/package.json ./packages/storage/
 RUN pnpm install --frozen-lockfile
 
 # Stage 2 — build
@@ -23,6 +26,9 @@ COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
 COPY --from=deps /app/packages/shared/node_modules ./packages/shared/node_modules
 COPY --from=deps /app/packages/api-client/node_modules ./packages/api-client/node_modules
 COPY --from=deps /app/packages/db/node_modules ./packages/db/node_modules
+COPY --from=deps /app/packages/ui/node_modules ./packages/ui/node_modules
+COPY --from=deps /app/packages/jobs/node_modules ./packages/jobs/node_modules
+COPY --from=deps /app/packages/storage/node_modules ./packages/storage/node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN pnpm --filter @inventorize/db db:generate
