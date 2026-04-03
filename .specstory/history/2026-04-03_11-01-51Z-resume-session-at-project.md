@@ -7,3 +7,64 @@
 _**User (2026-04-03 11:01:51Z)**_
 
 resume session @project.memory.md @docs/IMPLEMENTATION_MAP.md @docs/DECISIONS_LOG.md
+
+---
+
+_**Agent (claude-opus-4-6 2026-04-03 11:02:06Z)**_
+
+_**Agent (claude-opus-4-6 2026-04-03 11:02:23Z)**_
+
+✅ Session restored — Inventorize
+
+**BUILT SO FAR:**
+- Phase 0: Bootstrap complete
+- Phase 2: Requirements & Architecture complete
+- Phase 3: Config Generation complete (ports base=44874, Docker Hub enabled)
+- Phase 4 Part 1: Root config files (pnpm-workspace, turbo, tsconfig, eslint, prettier)
+- Phase 4 Part 2: packages/shared (7 enums, 17 interfaces, Zod schemas) + packages/api-client
+- Phase 4 Part 3: packages/db (Prisma schema 17 models, seed, tenant-guard, audit, RLS)
+- Phase 4 Part 4: packages/ui (16 components) + packages/jobs (BullMQ queues, workers, cache) + packages/storage (S3 ops, validation)
+- Phase 4 Part 5: apps/web Next.js full scaffold *(per git log: `8bb6442`)*
+
+**GOVERNANCE LAG DETECTED:**
+`docs/IMPLEMENTATION_MAP.md` shows Part 5 as `[ ] Next.js app scaffold`, but git log confirms `8bb6442 scaffold(web): Next.js full scaffold — Part 5 of 8` was committed and merged to main. IMPLEMENTATION_MAP needs reconciliation.
+
+**LOCKED DECISIONS:**
+- Dev Environment: MODE A — WSL2 native only (no devcontainer)
+- Git Branching: feat/{slug}, scaffold/part-{N}, squash-merge
+- Model Routing: planning=claude-code, execution=minimax-m2.5, governance=gemini-flash-lite
+- Port Strategy: base=44874 (DB=44874, PgBouncer=44875, Redis=44876, MinIO=44877, Console=44878, MailHog SMTP=44879, UI=44880, pgAdmin=44881, App=44884, Worker=44885, Studio=44894)
+- Docker Hub: docker.io / bonitobonita24/inventorize, linux/amd64+arm64, push on main
+- Spec Stress-Test: enabled (5 gaps found and resolved)
+- First Admin: webmaster / super_admin, 22-char password in CREDENTIALS.md
+- Tenant First-Login: one-time setup token via /auth/setup?token=, 24h expiry
+- Slug Collision: auto-generate + editable field + inline uniqueness check
+- StockOut Slip: SO-00001 format, sequential per tenant, immutable
+
+**ACTIVE DEV MODE:** MODE A — WSL2 native (only supported environment)
+**ACTIVE RULES:** V26 — 30 rules. H1–H4 system hardening. Rules 17–30 all active.
+
+Which phase are you continuing from? Based on git history, **Part 5 is done** — next would be **Part 6 (mobile, skip if none) or Part 7 (deploy/compose + tools)** in a new Cline session.
+
+---
+
+_**User (2026-04-03 11:04:56Z)**_
+
+Start Phase 4 Part 7
+
+---
+
+_**Agent (claude-opus-4-6 2026-04-03 11:05:03Z)**_
+
+_**Agent (claude-opus-4-6 2026-04-03 11:05:09Z)**_
+
+⚠ Phase 4 Part 7 is a Cline phase. Open Cline and run from there.
+
+In a new Cline session, say **"Start Part 7"** — Cline will read `.cline/tasks/phase4-part7.md` and generate:
+- `tools/` (validate-inputs, check-env, check-product-sync, hydration-lint)
+- `deploy/compose/dev|stage|prod/` (all compose files per service group)
+- `deploy/compose/start.sh` + `push.sh`
+- `COMMANDS.md`
+- `.socraticodecontextartifacts.json`
+
+**Note:** Before starting, you may want Cline to first reconcile the IMPLEMENTATION_MAP.md to reflect that Part 5 is complete (the governance doc is stale — git log shows Part 5 merged at `8bb6442`). Part 6 (mobile/Expo) should be skipped if no mobile app is declared in your inputs.yml.
