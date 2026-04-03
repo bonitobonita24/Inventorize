@@ -2647,3 +2647,375 @@ _**Agent (claude-opus-4-6 2026-04-03 12:49:24Z)**_
 </details></tool-use>
 
 _**Agent (claude-opus-4-6 2026-04-03 12:49:35Z)**_
+
+_**Agent (claude-opus-4-6 2026-04-03 12:49:43Z)**_
+
+**Phase 8 — Batch 2 Proposal**
+
+Built so far:
+- All scaffold (Phases 0-6)
+- Batch 1: Barcode scanning on stock-in/stock-out, CSV export, dashboard charts + low stock alerts
+
+Not yet built (declared in PRODUCT.md but missing from implementation):
+
+| # | Feature | Complexity |
+|---|---------|------------|
+| 1 | Serial number entry/selection UI on stock-in/stock-out | Medium |
+| 2 | File upload (delivery receipt on stock-in, attachment on PO) | Medium |
+| 3 | PO detail page with status management + receiving link | Medium |
+| 4 | Product detail page with history tab + serial list | Medium |
+| 5 | Printable stock-out slip | Small |
+| 6 | Supplier create/edit form | Small |
+| 7 | User create/edit/disable form | Small |
+| 8 | Audit log filtering (action, entity, user, date) | Small |
+| 9 | Stock adjustment form (currently just a list) | Medium |
+| 10 | Low stock email notifications (BullMQ cron) | Medium |
+| 11 | Super admin impersonation (read-only) | Medium |
+| 12 | Platform tenant create/suspend forms | Small |
+
+**Proposed Batch 2** (highest value — completes core CRUD forms):
+
+1. **Supplier create/edit form** — unblocks PO creation which requires a supplier
+2. **Stock adjustment form** — the adjustments page is just a list, needs the actual form with reason/notes/quantity delta
+3. **Audit log filtering** — add date, action type, entity, and user filters to the audit log page
+
+These three complete the core operational CRUD loop (suppliers feed POs, adjustments fix discrepancies, audit logs become usable).
+
+Confirm this batch, reorder, or tell me what to change. Reply "confirmed" to begin.
+
+---
+
+_**User (2026-04-03 12:50:51Z)**_
+
+confirmed
+
+---
+
+_**Agent (claude-opus-4-6 2026-04-03 12:50:56Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./apps/web/src/app/[tenantSlug]/suppliers/page.tsx`
+
+```text
+1	// Suppliers list page
+2	
+3	'use client';
+4	
+5	import { useState } from 'react';
+6	import { trpc } from '@/lib/trpc';
+7	
+8	export default function SuppliersPage() {
+9	  const [search, setSearch] = useState('');
+10	  const [page, setPage] = useState(1);
+11	
+12	  const { data, isLoading } = trpc.supplier.list.useQuery({
+13	    page,
+14	    limit: 50,
+15	    search: search.length > 0 ? search : undefined,
+16	  });
+17	
+18	  return (
+19	    <div className="space-y-6">
+20	      <h1 className="text-2xl font-bold">Suppliers</h1>
+21	
+22	      <input
+23	        type="text"
+24	        placeholder="Search suppliers..."
+25	        value={search}
+26	        onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+27	        className="flex h-10 w-full max-w-sm rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+28	      />
+29	
+30	      {isLoading ? (
+31	        <div>Loading suppliers...</div>
+32	      ) : (
+33	        <div className="rounded-lg border border-border">
+34	          <table className="w-full text-sm">
+35	            <thead>
+36	              <tr className="border-b border-border bg-muted/50">
+37	                <th className="px-4 py-3 text-left font-medium">Name</th>
+38	                <th className="px-4 py-3 text-left font-medium">Contact</th>
+39	                <th className="px-4 py-3 text-left font-medium">Phone</th>
+40	                <th className="px-4 py-3 text-left font-medium">Email</th>
+41	                <th className="px-4 py-3 text-left font-medium">Status</th>
+42	              </tr>
+43	            </thead>
+44	            <tbody>
+45	              {data?.items.map((supplier) => (
+46	                <tr key={supplier.id} className="border-b border-border">
+47	                  <td className="px-4 py-3 font-medium">{supplier.name}</td>
+48	                  <td className="px-4 py-3">{supplier.contactPerson ?? '-'}</td>
+49	                  <td className="px-4 py-3">{supplier.phone ?? '-'}</td>
+50	                  <td className="px-4 py-3">{supplier.email ?? '-'}</td>
+51	                  <td className="px-4 py-3">
+52	                    <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${
+53	                      supplier.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+54	                    }`}>
+55	                      {supplier.isActive ? 'Active' : 'Inactive'}
+56	                    </span>
+57	                  </td>
+58	                </tr>
+59	              ))}
+60	            </tbody>
+61	          </table>
+62	        </div>
+63	      )}
+64	    </div>
+65	  );
+66	}
+67
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-04-03 12:50:56Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./apps/web/src/app/[tenantSlug]/adjustments/page.tsx`
+
+```text
+1	// Stock adjustments list page
+2	
+3	'use client';
+4	
+5	import { useState } from 'react';
+6	import { trpc } from '@/lib/trpc';
+7	
+8	export default function AdjustmentsPage() {
+9	  const [page] = useState(1);
+10	  const { data, isLoading } = trpc.stockAdjustment.list.useQuery({ page, limit: 50 });
+11	
+12	  return (
+13	    <div className="space-y-6">
+14	      <h1 className="text-2xl font-bold">Stock Adjustments</h1>
+15	
+16	      {isLoading ? (
+17	        <div>Loading adjustments...</div>
+18	      ) : (
+19	        <div className="rounded-lg border border-border">
+20	          <table className="w-full text-sm">
+21	            <thead>
+22	              <tr className="border-b border-border bg-muted/50">
+23	                <th className="px-4 py-3 text-left font-medium">Date</th>
+24	                <th className="px-4 py-3 text-left font-medium">Reason</th>
+25	                <th className="px-4 py-3 text-left font-medium">Created By</th>
+26	                <th className="px-4 py-3 text-left font-medium">Approved By</th>
+27	              </tr>
+28	            </thead>
+29	            <tbody>
+30	              {data?.items.map((adj) => (
+31	                <tr key={adj.id} className="border-b border-border">
+32	                  <td className="px-4 py-3 text-xs">{new Date(adj.adjustmentDate).toLocaleDateString()}</td>
+33	                  <td className="px-4 py-3">{adj.reason}</td>
+34	                  <td className="px-4 py-3 font-mono text-xs">{adj.createdByUserId}</td>
+35	                  <td className="px-4 py-3 font-mono text-xs">{adj.approvedByUserId ?? 'Pending'}</td>
+36	                </tr>
+37	              ))}
+38	            </tbody>
+39	          </table>
+40	        </div>
+41	      )}
+42	    </div>
+43	  );
+44	}
+45
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-04-03 12:50:57Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./apps/web/src/app/[tenantSlug]/audit-logs/page.tsx`
+
+```text
+1	// Tenant audit logs page
+2	
+3	'use client';
+4	
+5	import { useState } from 'react';
+6	import { trpc } from '@/lib/trpc';
+7	
+8	export default function AuditLogsPage() {
+9	  const [page] = useState(1);
+10	  const { data, isLoading } = trpc.auditLog.list.useQuery({ page, limit: 50 });
+11	
+12	  return (
+13	    <div className="space-y-6">
+14	      <h1 className="text-2xl font-bold">Audit Logs</h1>
+15	
+16	      {isLoading ? (
+17	        <div>Loading audit logs...</div>
+18	      ) : (
+19	        <div className="rounded-lg border border-border">
+20	          <table className="w-full text-sm">
+21	            <thead>
+22	              <tr className="border-b border-border bg-muted/50">
+23	                <th className="px-4 py-3 text-left font-medium">Date</th>
+24	                <th className="px-4 py-3 text-left font-medium">Action</th>
+25	                <th className="px-4 py-3 text-left font-medium">Actor</th>
+26	                <th className="px-4 py-3 text-left font-medium">Entity</th>
+27	              </tr>
+28	            </thead>
+29	            <tbody>
+30	              {data?.items.map((log) => (
+31	                <tr key={log.id} className="border-b border-border">
+32	                  <td className="px-4 py-3 text-xs">{new Date(log.createdAt).toLocaleString()}</td>
+33	                  <td className="px-4 py-3 font-mono text-xs">{log.actionType}</td>
+34	                  <td className="px-4 py-3">{log.actorUser?.name ?? 'System'}</td>
+35	                  <td className="px-4 py-3 text-xs">{log.entityType}:{log.entityId}</td>
+36	                </tr>
+37	              ))}
+38	            </tbody>
+39	          </table>
+40	        </div>
+41	      )}
+42	    </div>
+43	  );
+44	}
+45
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-04-03 12:51:01Z)**_
+
+Now let me check the tRPC routers for the available procedures:
+
+_**Agent (claude-opus-4-6 2026-04-03 12:51:02Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./apps/web/src/server/trpc/routers/supplier.router.ts`
+
+```text
+1	// Supplier router — tenant-scoped CRUD
+2	
+3	import { z } from 'zod';
+4	import { createTRPCRouter, tenantProcedure } from '../trpc';
+5	import { requireRole } from '../middleware/rbac';
+6	import { UserRole } from '@inventorize/shared/enums';
+7	import { prisma } from '@inventorize/db';
+8	import { withTenantContext } from '@inventorize/db';
+9	import type { Prisma } from '@inventorize/db';
+10	
+11	export const supplierRouter = createTRPCRouter({
+12	  list: tenantProcedure
+13	    .use(requireRole(UserRole.ADMIN, UserRole.PURCHASING_STAFF))
+14	    .input(
+15	      z.object({
+16	        page: z.number().int().min(1).default(1),
+17	        limit: z.number().int().min(1).max(200).default(50),
+18	        search: z.string().optional(),
+19	      }).strict(),
+20	    )
+21	    .query(async ({ ctx, input }) => {
+22	      const tenantId = ctx.tenantId!;
+23	      const userId = ctx.userId!;
+24	      return withTenantContext(
+25	        { tenantId, userId },
+26	        async () => {
+27	          const where = {
+28	            tenantId,
+29	            ...(input.search !== undefined
+30	              ? {
+31	                  OR: [
+32	                    { name: { contains: input.search, mode: 'insensitive' as const } },
+33	                    { contactPerson: { contains: input.search, mode: 'insensitive' as const } },
+34	                  ],
+35	                }
+36	              : {}),
+37	          };
+38	          const [items, total] = await Promise.all([
+39	            prisma.supplier.findMany({
+40	              where,
+41	              skip: (input.page - 1) * input.limit,
+42	              take: input.limit,
+43	              orderBy: { name: 'asc' },
+44	            }),
+45	            prisma.supplier.count({ where }),
+46	          ]);
+47	          return { items, total, page: input.page, limit: input.limit, totalPages: Math.ceil(total / input.limit) };
+48	        },
+49	      );
+50	    }),
+51	
+52	  create: tenantProcedure
+53	    .use(requireRole(UserRole.ADMIN, UserRole.PURCHASING_STAFF))
+54	    .input(
+55	      z.object({
+56	        name: z.string().min(1).max(200),
+57	        contactPerson: z.string().max(200).nullable().default(null),
+58	        phone: z.string().max(50).nullable().default(null),
+59	        email: z.string().email().nullable().default(null),
+60	        address: z.string().max(500).nullable().default(null),
+61	        notes: z.string().max(2000).nullable().default(null),
+62	      }).strict(),
+63	    )
+64	    .mutation(async ({ ctx, input }) => {
+65	      const tenantId = ctx.tenantId!;
+66	      const userId = ctx.userId!;
+67	      return withTenantContext(
+68	        { tenantId, userId },
+69	        async () => {
+70	          return prisma.supplier.create({
+71	            data: { ...input, tenantId, isActive: true },
+72	          });
+73	        },
+74	      );
+75	    }),
+76	
+77	  update: tenantProcedure
+78	    .use(requireRole(UserRole.ADMIN, UserRole.PURCHASING_STAFF))
+79	    .input(
+80	      z.object({
+81	        id: z.string().cuid(),
+82	        name: z.string().min(1).max(200).optional(),
+83	        contactPerson: z.string().max(200).nullable().optional(),
+84	        phone: z.string().max(50).nullable().optional(),
+85	        email: z.string().email().nullable().optional(),
+86	        address: z.string().max(500).nullable().optional(),
+87	        notes: z.string().max(2000).nullable().optional(),
+88	        isActive: z.boolean().optional(),
+89	      }).strict(),
+90	    )
+91	    .mutation(async ({ ctx, input }) => {
+92	      const tenantId = ctx.tenantId!;
+93	      const userId = ctx.userId!;
+94	      return withTenantContext(
+95	        { tenantId, userId },
+96	        async () => {
+97	          const { id, ...data } = input;
+98	          const updateData: Record<string, unknown> = {};
+99	          if (data.name !== undefined) updateData['name'] = data.name;
+100	          if (data.contactPerson !== undefined) updateData['contactPerson'] = data.contactPerson;
+101	          if (data.phone !== undefined) updateData['phone'] = data.phone;
+102	          if (data.email !== undefined) updateData['email'] = data.email;
+103	          if (data.address !== undefined) updateData['address'] = data.address;
+104	          if (data.notes !== undefined) updateData['notes'] = data.notes;
+105	          if (data.isActive !== undefined) updateData['isActive'] = data.isActive;
+106	          return prisma.supplier.update({
+107	            where: { id },
+108	            data: updateData as Prisma.SupplierUncheckedUpdateInput,
+109	          });
+110	        },
+111	      );
+112	    }),
+113	});
+114
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-04-03 12:51:02Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./apps/web/src/server/trpc/routers/stock-adjustment.router.ts`
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-04-03 12:51:03Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./apps/web/src/server/trpc/routers/audit-log.router.ts`
+</details></tool-use>
