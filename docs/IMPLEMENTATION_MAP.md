@@ -5,8 +5,8 @@
 ## Project Info
 - App Name:     Inventorize
 - App Slug:     inventorize
-- Phase:        Phase 8 — Iterative Buildout (Batches 1–2 complete)
-- Last Updated: 2026-04-03
+- Phase:        Phase 8 — Iterative Buildout (Batches 1–4 complete)
+- Last Updated: 2026-04-04
 
 ---
 
@@ -19,7 +19,7 @@
 - [x] Phase 5: Validation (all 9 commands pass)
 - [x] Phase 6: Docker Startup
 - [x] Phase 7: Feature Updates (via Phase 8 batches)
-- [ ] Phase 8: Iterative Buildout (Batches 1–2 of N complete)
+- [ ] Phase 8: Iterative Buildout (Batches 1–4 of N complete)
 
 ---
 
@@ -87,8 +87,8 @@
 - [x] apps/web/src/server/trpc/routers/ — 10 routers:
   - [x] product.router.ts (CRUD, list with cursor pagination, stock history)
   - [x] supplier.router.ts (CRUD, list)
-  - [x] purchase-order.router.ts (CRUD, status transitions, list)
-  - [x] stock-in.router.ts (create with serial numbers, list)
+  - [x] purchase-order.router.ts (CRUD, status transitions, list, listReceivable) ✦ Batch 4: listReceivable for stock-in PO selector; byId includes stockIns
+  - [x] stock-in.router.ts (create with serial numbers, list) ✦ Batch 4: create propagates receivedQty to PurchaseOrderItem + auto-updates PO status
   - [x] stock-out.router.ts (create with slip number, list)
   - [x] stock-adjustment.router.ts (create, list)
   - [x] user.router.ts (CRUD, role assignment, impersonation)
@@ -103,15 +103,15 @@
   - [x] api/trpc/[trpc]/route.ts (tRPC API handler)
   - [x] [tenantSlug]/layout.tsx (tenant layout with sidebar nav)
   - [x] [tenantSlug]/dashboard/page.tsx ✦ Batch 1: recharts KPI charts (bar, line, pie, area)
-  - [x] [tenantSlug]/products/page.tsx + [id]/page.tsx + [id]/history/page.tsx (list + detail — no create/edit form yet)
+  - [x] [tenantSlug]/products/page.tsx + [id]/page.tsx + [id]/history/page.tsx ✦ Batch 3: create/edit form (admin-only), real-time price preview, serial tracking toggle, Decimal conversion, deactivate/activate
   - [x] [tenantSlug]/suppliers/page.tsx ✦ Batch 2: create/edit form, activate/deactivate toggle
-  - [x] [tenantSlug]/purchase-orders/page.tsx + [id]/page.tsx (list + detail — no create form yet)
-  - [x] [tenantSlug]/stock-in/page.tsx ✦ Batch 1: BarcodeScanner + create form
+  - [x] [tenantSlug]/purchase-orders/page.tsx + [id]/page.tsx ✦ Batch 3: create form with dynamic line items, supplier dropdown, auto-fill cost, order total, supplier name in list ✦ Batch 4: [id]/page.tsx shows linked Receipts section (stock-in referenceNumber + receivedDate)
+  - [x] [tenantSlug]/stock-in/page.tsx ✦ Batch 1: BarcodeScanner + create form ✦ Batch 4: PO dropdown selector, auto-populate remaining items, purchaseOrderId in mutation, Linked PO column
   - [x] [tenantSlug]/stock-out/page.tsx ✦ Batch 1: BarcodeScanner + create form
   - [x] [tenantSlug]/adjustments/page.tsx ✦ Batch 2: create form with reason enum, BarcodeScanner, delta preview
   - [x] [tenantSlug]/audit-logs/page.tsx ✦ Batch 2: entity type + date range filters, pagination, action badges
   - [x] [tenantSlug]/reports/page.tsx ✦ Batch 1: CSV export (movements + low stock)
-  - [x] [tenantSlug]/users/page.tsx (list only — no create/edit/deactivate yet)
+  - [x] [tenantSlug]/users/page.tsx ✦ Batch 3: create form, inline edit, disable/enable toggle, role assignment, search, pagination
   - [x] platform/layout.tsx + tenants/page.tsx + audit-logs/page.tsx + metrics/page.tsx
 - [x] apps/web/src/server/lib/rate-limit.ts (LRU-based, 4 tiers: public/auth/api/upload)
 - [x] apps/web/src/server/lib/sanitize.ts (DOMPurify — sanitize + sanitizePlainText)

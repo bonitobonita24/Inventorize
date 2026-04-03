@@ -107,6 +107,35 @@ export const stockInRouter = createTRPCRouter({
               });
             }
 
+            // Update PO received quantities and auto-update status when linked
+            if (input.purchaseOrderId !== null) {
+              for (const item of stockInItems) {
+                await tx.purchaseOrderItem.updateMany({
+                  where: {
+                    purchaseOrderId: input.purchaseOrderId,
+                    productId: item.productId,
+                    tenantId,
+                  },
+                  data: { receivedQty: { increment: item.quantity } },
+                });
+              }
+
+              // Re-fetch after increments to determine new PO status
+              const poItems = await tx.purchaseOrderItem.findMany({
+                where: { purchaseOrderId: input.purchaseOrderId, tenantId },
+                select: { orderedQty: true, receivedQty: true },
+              });
+
+              const allReceived = poItems.every((poi) => poi.receivedQty >= poi.orderedQty);
+              const anyReceived = poItems.some((poi) => poi.receivedQty > 0);
+              const newStatus = allReceived ? 'received' : anyReceived ? 'partially_received' : 'ordered';
+
+              await tx.purchaseOrder.update({
+                where: { id: input.purchaseOrderId },
+                data: { status: newStatus },
+              });
+            }
+
             return stockIn;
           });
         },

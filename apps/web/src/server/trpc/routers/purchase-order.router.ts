@@ -56,6 +56,7 @@ export const purchaseOrderRouter = createTRPCRouter({
             include: {
               supplier: true,
               items: { include: { product: { select: { name: true, productCode: true } } } },
+              stockIns: { select: { id: true, referenceNumber: true, receivedDate: true } },
             },
           });
         },
@@ -121,5 +122,25 @@ export const purchaseOrderRouter = createTRPCRouter({
           });
         },
       );
+    }),
+
+  // POs eligible for receiving (ordered or partially received) — used by stock-in form
+  listReceivable: tenantProcedure
+    .use(requireRole(UserRole.ADMIN, UserRole.PURCHASING_STAFF, UserRole.WAREHOUSE_STAFF))
+    .query(async ({ ctx }) => {
+      const tenantId = ctx.tenantId!;
+      const userId = ctx.userId!;
+      return withTenantContext({ tenantId, userId }, async () => {
+        return prisma.purchaseOrder.findMany({
+          where: { tenantId, status: { in: ['ordered', 'partially_received'] } },
+          orderBy: { createdAt: 'desc' },
+          include: {
+            supplier: { select: { name: true } },
+            items: {
+              include: { product: { select: { name: true, productCode: true } } },
+            },
+          },
+        });
+      });
     }),
 });

@@ -19,8 +19,10 @@ export default function StockInPage() {
   const [pendingItems, setPendingItems] = useState<PendingItem[]>([]);
   const [notes, setNotes] = useState('');
   const [scanResult, setScanResult] = useState<string | null>(null);
+  const [selectedPoId, setSelectedPoId] = useState<string | null>(null);
 
   const { data, isLoading, refetch } = trpc.stockIn.list.useQuery({ page, limit: 50 });
+  const { data: receivablePOs } = trpc.purchaseOrder.listReceivable.useQuery();
   const productSearch = trpc.product.list.useQuery(
     { page: 1, limit: 5, search: scanResult ?? '' },
     { enabled: scanResult !== null && scanResult.length > 0 },
@@ -31,12 +33,34 @@ export default function StockInPage() {
       setNotes('');
       setShowForm(false);
       setScanResult(null);
+      setSelectedPoId(null);
       void refetch();
     },
   });
 
   const handleScan = (value: string) => {
     setScanResult(value);
+  };
+
+  const handlePoSelect = (poId: string) => {
+    if (poId === '') {
+      setSelectedPoId(null);
+      setPendingItems([]);
+      return;
+    }
+    setSelectedPoId(poId);
+    const po = receivablePOs?.find((p) => p.id === poId);
+    if (po === undefined) return;
+    // Auto-populate items with remaining quantities from the PO
+    const items: PendingItem[] = po.items
+      .filter((item) => item.orderedQty - item.receivedQty > 0)
+      .map((item) => ({
+        productId: item.productId,
+        productName: item.product.name,
+        quantity: item.orderedQty - item.receivedQty,
+        supplierCostSnapshot: Number(item.supplierCostSnapshot),
+      }));
+    setPendingItems(items);
   };
 
   const addItem = (product: { id: string; name: string }, quantity: number, cost: number) => {
@@ -54,6 +78,7 @@ export default function StockInPage() {
   const handleSubmit = () => {
     if (pendingItems.length === 0) return;
     createMutation.mutate({
+      purchaseOrderId: selectedPoId,
       receivedDate: new Date().toISOString(),
       notes: notes.length > 0 ? notes : null,
       items: pendingItems.map(({ productId, quantity, supplierCostSnapshot }) => ({
@@ -80,6 +105,30 @@ export default function StockInPage() {
       {showForm && (
         <div className="space-y-4 rounded-lg border border-border p-4">
           <h2 className="text-lg font-semibold">Receive Items</h2>
+
+          {/* PO selector */}
+          <div>
+            <label className="mb-1 block text-sm font-medium">
+              Link to Purchase Order <span className="text-muted-foreground">(optional)</span>
+            </label>
+            <select
+              value={selectedPoId ?? ''}
+              onChange={(e) => { handlePoSelect(e.target.value); }}
+              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+            >
+              <option value="">— No PO —</option>
+              {receivablePOs?.map((po) => (
+                <option key={po.id} value={po.id}>
+                  {po.poNumber}{po.supplier !== null ? ` — ${po.supplier.name}` : ''}
+                </option>
+              ))}
+            </select>
+            {selectedPoId !== null && (
+              <p className="mt-1 text-xs text-muted-foreground">
+                Items pre-filled from PO. Adjust quantities as needed or scan to add extra items.
+              </p>
+            )}
+          </div>
 
           <BarcodeScanner
             onScan={handleScan}
@@ -123,7 +172,7 @@ export default function StockInPage() {
                   <tr className="border-b border-border bg-muted/50">
                     <th className="px-4 py-2 text-left font-medium">Product</th>
                     <th className="px-4 py-2 text-right font-medium">Qty</th>
-                    <th className="px-4 py-2 text-right font-medium">Cost</th>
+                    <th className="px-4 py-2 text-right font-medium">Unit Cost</th>
                     <th className="px-4 py-2 text-right font-medium"></th>
                   </tr>
                 </thead>
@@ -211,6 +260,7 @@ export default function StockInPage() {
             <thead>
               <tr className="border-b border-border bg-muted/50">
                 <th className="px-4 py-3 text-left font-medium">Reference</th>
+                <th className="px-4 py-3 text-left font-medium">Linked PO</th>
                 <th className="px-4 py-3 text-left font-medium">Date</th>
                 <th className="px-4 py-3 text-right font-medium">Items</th>
               </tr>
@@ -219,13 +269,16 @@ export default function StockInPage() {
               {data?.items.map((stockIn) => (
                 <tr key={stockIn.id} className="border-b border-border">
                   <td className="px-4 py-3 font-mono text-xs">{stockIn.referenceNumber}</td>
+                  <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
+                    {stockIn.purchaseOrderId !== null ? '✓ PO linked' : '—'}
+                  </td>
                   <td className="px-4 py-3 text-xs">{new Date(stockIn.receivedDate).toLocaleDateString()}</td>
                   <td className="px-4 py-3 text-right">{stockIn.items.length}</td>
                 </tr>
               ))}
               {data?.items.length === 0 && (
                 <tr>
-                  <td colSpan={3} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">
                     No stock-in records yet
                   </td>
                 </tr>

@@ -3,6 +3,31 @@
 # Include agent attribution in every entry.
 # ---
 
+## 2026-04-04 — Phase 8 Batch 4 — PO Detail + Stock-In PO Link
+- Agent:               CLAUDE_CODE
+- Why:                 Batch 4 — wire purchase order receiving flow end-to-end: PO detail shows linked receipts, stock-in auto-updates PO receivedQty and status, stock-in form has PO selector with auto-populated items
+- Files added:         none
+- Files modified:      apps/web/src/server/trpc/routers/purchase-order.router.ts (added listReceivable procedure; byId now includes stockIns relation)
+                       apps/web/src/server/trpc/routers/stock-in.router.ts (create transaction now propagates receivedQty increments to PurchaseOrderItem and auto-updates PO status: ordered→partially_received→received)
+                       apps/web/src/app/[tenantSlug]/stock-in/page.tsx (added PO dropdown with auto-populate remaining items, purchaseOrderId passed in mutation, Linked PO column in list)
+                       apps/web/src/app/[tenantSlug]/purchase-orders/[id]/page.tsx (added Receipts section showing linked stock-in records)
+- Files deleted:       none
+- Schema/migrations:   none (PurchaseOrderItem.receivedQty and StockIn.purchaseOrderId already in schema)
+- Errors encountered:  none
+- Errors resolved:     none
+
+## 2026-04-04 — Phase 8 Batch 3 — Admin Foundations
+- Agent:               CLAUDE_CODE
+- Why:                 Batch 3 of iterative buildout — implement core admin CRUD that was scaffolded read-only
+- Files added:         none
+- Files modified:      apps/web/src/app/[tenantSlug]/products/page.tsx (create/edit form, admin-only actions, Decimal conversion, role gating via useSession)
+                       apps/web/src/app/[tenantSlug]/users/page.tsx (create + inline edit + disable/enable + role assignment + search + pagination — full rewrite from read-only)
+                       apps/web/src/app/[tenantSlug]/purchase-orders/page.tsx (create form with dynamic line items, supplier dropdown, product selector, auto-fill supplierCostSnapshot, order total preview, supplier name in list)
+- Files deleted:       none
+- Schema/migrations:   none
+- Errors encountered:  TypeScript: session.user.role not in type (no next-auth module augmentation); product list type excludes supplierCost for warehouse_staff branch
+- Errors resolved:     Used (session?.user as { role?: string })?.role cast; accessed supplierCost via (product as Record<string, unknown>)['supplierCost']; used 'unknown' double-cast for startEdit parameter
+
 ## 2026-04-02 — Phase 0 Bootstrap
 - Agent:               BOOTSTRAP
 - Why:                 Initialize project structure with all governance files
