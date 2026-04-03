@@ -5,7 +5,7 @@
 ## Project Info
 - App Name:     Inventorize
 - App Slug:     inventorize
-- Phase:        Phase 3 complete — ready for Phase 4
+- Phase:        Phase 4 Part 4 complete — ready for Part 5
 - Last Updated: 2026-04-03
 
 ---
@@ -51,10 +51,21 @@
 - [x] src/middleware/tenant-guard.ts (L6 Prisma $allOperations extension)
 - [x] src/rls.ts (L2 PostgreSQL RLS helper + rlsStatements + TENANT_SCOPED_TABLES)
 
-### Part 4: Additional packages
-- [ ] packages/ui
-- [ ] packages/jobs
-- [ ] packages/storage
+### Part 4: packages/ui + packages/jobs + packages/storage
+- [x] packages/ui/package.json + tsconfig.json (DOM lib, peer deps for React + Tailwind)
+- [x] packages/ui/src/lib/utils.ts (cn() utility — clsx + tailwind-merge)
+- [x] packages/ui/src/styles/globals.css (Tailwind + CSS custom properties for light/dark)
+- [x] packages/ui/src/components/ (16 components: button, input, label, card, table, badge, dialog, select, dropdown-menu, toast, separator, avatar, checkbox, switch, tabs, tooltip, skeleton, alert-dialog)
+- [x] packages/jobs/package.json + tsconfig.json (BullMQ + ioredis)
+- [x] packages/jobs/src/connection.ts (Redis singleton with env var validation)
+- [x] packages/jobs/src/queues/ (low-stock-check cron daily, email-notifications event-driven, typed payloads with tenantId+userId)
+- [x] packages/jobs/src/workers/ (worker factories for low-stock-check + email-notifications)
+- [x] packages/jobs/src/scheduler.ts (registers daily cron for low-stock-check at 00:00 UTC)
+- [x] packages/jobs/src/cache/index.ts (tenant-prefixed Valkey cache: get/set/del + JSON variants)
+- [x] packages/storage/package.json + tsconfig.json (@aws-sdk/client-s3 + presigner)
+- [x] packages/storage/src/client.ts (S3Client singleton, forcePathStyle for MinIO)
+- [x] packages/storage/src/validation.ts (MIME whitelist: PDF/JPEG/PNG, SVG/HTML blocked, 10MB limit, randomized filenames)
+- [x] packages/storage/src/operations.ts (uploadFile, getDownloadUrl, deleteFile, fileExists — all tenant-scoped via path prefix check)
 
 ### Part 5: apps/[web]
 - [ ] Next.js app scaffold

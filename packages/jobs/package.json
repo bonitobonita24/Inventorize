@@ -1,0 +1,25 @@
+{
+  "name": "@inventorize/jobs",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./queues": "./src/queues/index.ts",
+    "./workers": "./src/workers/index.ts",
+    "./cache": "./src/cache/index.ts"
+  },
+  "scripts": {
+    "lint": "eslint src/",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "bullmq": "^5.20.0",
+    "ioredis": "^5.4.0",
+    "@inventorize/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0"
+  }
+}
