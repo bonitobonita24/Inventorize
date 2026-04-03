@@ -1,7 +1,7 @@
 // tRPC context — created for every request, provides session + tenant info
 
 import type { FetchCreateContextFnOptions } from '@trpc/server/adapters/fetch';
-import { auth } from '@/server/auth/index.js';
+import { auth } from '@/server/auth';
 import type { UserRole } from '@inventorize/shared/enums';
 
 export interface TRPCContext {

@@ -1,0 +1,24 @@
+{
+  "artifacts": [
+    {
+      "name": "database-schema",
+      "path": "./packages/db/prisma/schema.prisma",
+      "description": "Complete Prisma schema — all models, relations, indexes. Use to understand data structure and relationships."
+    },
+    {
+      "name": "implementation-map",
+      "path": "./docs/IMPLEMENTATION_MAP.md",
+      "description": "Current implementation state — what is built, what is pending. Use to understand project progress."
+    },
+    {
+      "name": "decisions-log",
+      "path": "./docs/DECISIONS_LOG.md",
+      "description": "Locked architectural decisions — tech stack choices, tenancy model, security layers."
+    },
+    {
+      "name": "product-definition",
+      "path": "./docs/PRODUCT.md",
+      "description": "Product spec — entities, roles, workflows, security requirements. The single source of truth."
+    }
+  ]
+}

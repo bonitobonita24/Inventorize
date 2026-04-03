@@ -2,8 +2,8 @@
 
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
-import { createTRPCRouter, tenantProcedure } from '../trpc.js';
-import { requireRole } from '../middleware/rbac.js';
+import { createTRPCRouter, tenantProcedure } from '../trpc';
+import { requireRole } from '../middleware/rbac';
 import { UserRole } from '@inventorize/shared/enums';
 import { prisma } from '@inventorize/db';
 import { withTenantContext } from '@inventorize/db';

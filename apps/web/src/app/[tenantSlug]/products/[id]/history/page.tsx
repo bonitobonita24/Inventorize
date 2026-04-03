@@ -3,7 +3,7 @@
 'use client';
 
 import { useParams } from 'next/navigation';
-import { trpc } from '@/lib/trpc.js';
+import { trpc } from '@/lib/trpc';
 import Link from 'next/link';
 
 export default function ProductHistoryPage() {

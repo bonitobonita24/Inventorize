@@ -1,7 +1,7 @@
 import { Worker, type Job } from 'bullmq';
 
-import { getRedisConnection } from '../connection.js';
-import { QUEUE_NAMES, type LowStockCheckPayload } from '../queues/types.js';
+import { getRedisConnection } from '../connection';
+import { QUEUE_NAMES, type LowStockCheckPayload } from '../queues/types';
 
 export function createLowStockCheckWorker(
   processor: (job: Job<LowStockCheckPayload>) => Promise<void>,

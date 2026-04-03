@@ -1,10 +1,10 @@
-export { getS3Client, getStorageConfig } from './client.js';
-export type { StorageConfig } from './client.js';
+export { getS3Client, getStorageConfig } from './client';
+export type { StorageConfig } from './client';
 export {
   validateMimeType,
   validateFileSize,
   generateStoragePath,
   extractTenantIdFromPath,
-} from './validation.js';
-export { uploadFile, getDownloadUrl, deleteFile, fileExists } from './operations.js';
-export type { UploadParams, UploadResult } from './operations.js';
+} from './validation';
+export { uploadFile, getDownloadUrl, deleteFile, fileExists } from './operations';
+export type { UploadParams, UploadResult } from './operations';

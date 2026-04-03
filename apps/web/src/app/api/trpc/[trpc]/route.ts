@@ -2,8 +2,8 @@
 // Non-tRPC: manual auth not required — tRPC middleware handles auth/tenant/RBAC
 
 import { fetchRequestHandler } from '@trpc/server/adapters/fetch';
-import { appRouter } from '@/server/trpc/router.js';
-import { createTRPCContext } from '@/server/trpc/context.js';
+import { appRouter } from '@/server/trpc/router';
+import { createTRPCContext } from '@/server/trpc/context';
 
 function handler(req: Request) {
   return fetchRequestHandler({

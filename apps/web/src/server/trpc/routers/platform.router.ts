@@ -3,8 +3,8 @@
 
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
-import { createTRPCRouter, protectedProcedure } from '../trpc.js';
-import { requireRole } from '../middleware/rbac.js';
+import { createTRPCRouter, protectedProcedure } from '../trpc';
+import { requireRole } from '../middleware/rbac';
 import { UserRole } from '@inventorize/shared/enums';
 import { platformPrisma } from '@inventorize/db';
 

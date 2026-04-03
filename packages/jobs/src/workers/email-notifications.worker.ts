@@ -1,7 +1,7 @@
 import { Worker, type Job } from 'bullmq';
 
-import { getRedisConnection } from '../connection.js';
-import { QUEUE_NAMES, type EmailNotificationPayload } from '../queues/types.js';
+import { getRedisConnection } from '../connection';
+import { QUEUE_NAMES, type EmailNotificationPayload } from '../queues/types';
 
 export function createEmailNotificationsWorker(
   processor: (job: Job<EmailNotificationPayload>) => Promise<void>,

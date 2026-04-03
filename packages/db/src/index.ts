@@ -2,7 +2,7 @@
 // Re-exports PrismaClient and all generated types.
 
 import { PrismaClient } from '@prisma/client';
-import { tenantGuardExtension } from './middleware/tenant-guard.js';
+import { tenantGuardExtension } from './middleware/tenant-guard';
 
 // Re-export tenant context utilities (defined in context.ts to avoid circular deps)
 export {
@@ -10,8 +10,8 @@ export {
   getTenantContext,
   currentTenantId,
   currentUserId,
-} from './context.js';
-export type { TenantContext } from './context.js';
+} from './context';
+export type { TenantContext } from './context';
 
 // ─── Prisma client singleton ─────────────────────────────────
 

@@ -85,6 +85,16 @@
 - Errors encountered:  none
 - Errors resolved:     none
 
+## 2026-04-03 — Docker Hub Pipeline (between Parts 3–4)
+- Agent:               CLAUDE_CODE
+- Why:                 Enable Docker Hub image publishing pipeline per inputs.yml docker.publish: true
+- Files added:         .github/workflows/docker-publish.yml, apps/web/.dockerignore, apps/web/Dockerfile, deploy/compose/push.sh
+- Files modified:      docs/DECISIONS_LOG.md (Docker image publishing decision updated), inputs.yml (docker section updated)
+- Files deleted:       none
+- Schema/migrations:   none
+- Errors encountered:  none
+- Errors resolved:     none
+
 ## 2026-04-03 — Phase 4 Part 5: Next.js Web App Scaffold
 - Agent:               CLAUDE_CODE
 - Why:                 Scaffold full Next.js 15 App Router web app with tRPC, Auth.js v5, multi-tenant routing
@@ -94,3 +104,63 @@
 - Schema/migrations:   none
 - Errors encountered:  ~80 TypeScript errors (tRPC middleware type narrowing, Auth.js session cast, Prisma enum case, exactOptionalPropertyTypes, TS2742 declaration emit); 16 ESLint errors; 7 typecheck regressions from lint fix
 - Errors resolved:     Non-null assertions with eslint-disable for tRPC ctx narrowing gap; unknown intermediate casts for Auth.js; lowercase enum values; explicit field construction for updates; declaration:false in tsconfig; eslint-disable + ! pattern for ESLint/tsc disagreement
+
+## 2026-04-03 — Phase 4 Part 7: tools/ + deploy/compose/ + SocratiCode artifacts
+- Agent:               CLAUDE_CODE
+- Why:                 Generate Docker Compose infrastructure (all 3 envs), validation tools, COMMANDS.md, and SocratiCode artifacts
+- Files added:         deploy/compose/dev/ (docker-compose.db.yml, .cache.yml, .storage.yml, .infra.yml, .app.yml, .pgadmin.yml, pgadmin-servers.json), deploy/compose/stage/ (docker-compose.db.yml, .cache.yml, .storage.yml, .app.yml, .pgadmin.yml, pgadmin-servers.json), deploy/compose/prod/ (docker-compose.db.yml, .cache.yml, .storage.yml, .app.yml, .pgadmin.yml, pgadmin-servers.json), deploy/compose/start.sh, tools/validate-inputs.mjs, tools/check-env.mjs, tools/check-product-sync.mjs, tools/hydration-lint.mjs, COMMANDS.md, .socraticodecontextartifacts.json
+- Files modified:      docs/CHANGELOG_AI.md, docs/IMPLEMENTATION_MAP.md
+- Files deleted:       none
+- Schema/migrations:   none
+- Errors encountered:  none
+- Errors resolved:     none
+
+## 2026-04-03 — Phase 4 Part 8: CI + Governance + MANIFEST.txt
+- Agent:               CLAUDE_CODE
+- Why:                 Generate CI workflow, MANIFEST.txt, and finalize Phase 4 scaffold
+- Files added:         .github/workflows/ci.yml, MANIFEST.txt
+- Files modified:      docs/CHANGELOG_AI.md, docs/IMPLEMENTATION_MAP.md, .cline/STATE.md
+- Files deleted:       none
+- Schema/migrations:   none
+- Errors encountered:  none
+- Errors resolved:     none
+
+## 2026-04-03 — Phase 5: Validation
+- Agent:               CLAUDE_CODE
+- Why:                 Run all 9 validation commands and fix failures to confirm scaffold integrity
+- Files added:         none
+- Files modified:      package.json (pnpm.overrides for @types/react ^19.2.14), apps/web/src/app/login/page.tsx (Suspense boundary for useSearchParams), ~50 files across apps/web/src/ and packages/ (removed invalid .js extension imports)
+- Files deleted:       none
+- Schema/migrations:   none
+- Errors encountered:  (1) pnpm build failed — .js extension imports invalid for Next.js webpack bundler; (2) pnpm typecheck failed — duplicate @types/react v18 vs v19 from lucide-react peer dep; (3) pnpm build failed — useSearchParams() requires Suspense boundary in Next.js 15
+- Errors resolved:     (1) Removed all .js extensions from imports across apps/web and packages/; (2) Added pnpm overrides to force @types/react@^19.2.14; (3) Wrapped login page in Suspense with LoginForm inner component
+
+## 2026-04-03 — Phase 8 Batch 1: Dashboard + Barcode + CSV + Low Stock
+- Agent:               CLAUDE_CODE
+- Why:                 Implement first batch of Phase 8 iterative features — dashboard visualizations, barcode scanning, CSV export, low stock alerts
+- Files added:         apps/web/src/lib/csv-export.ts, apps/web/src/components/barcode-scanner.tsx
+- Files modified:      apps/web/src/app/[tenantSlug]/dashboard/page.tsx (recharts KPI charts — bar, line, pie, area), apps/web/src/app/[tenantSlug]/stock-in/page.tsx (BarcodeScanner + create form), apps/web/src/app/[tenantSlug]/stock-out/page.tsx (BarcodeScanner + create form), apps/web/src/app/[tenantSlug]/reports/page.tsx (CSV export for movements + low stock), apps/web/package.json (added recharts, html5-qrcode)
+- Files deleted:       none
+- Schema/migrations:   none
+- Errors encountered:  none
+- Errors resolved:     none
+
+## 2026-04-03 — Phase 8 Batch 2: Supplier CRUD + Adjustment Form + Audit Filtering
+- Agent:               CLAUDE_CODE
+- Why:                 Implement second batch — supplier create/edit/deactivate forms, stock adjustment form with barcode scanner and reason enum, audit log filtering by entity type and date range
+- Files added:         none
+- Files modified:      apps/web/src/app/[tenantSlug]/suppliers/page.tsx (added create/edit form with all fields, inline edit via startEdit(), activate/deactivate toggle per row), apps/web/src/app/[tenantSlug]/adjustments/page.tsx (added create form with reason dropdown, BarcodeScanner product search, pending items table with delta input and result preview, negative stock warning), apps/web/src/app/[tenantSlug]/audit-logs/page.tsx (added filter bar: entity type dropdown, start/end date pickers, clear button, entry count with filtered indicator, pagination controls, color-coded action badges)
+- Files deleted:       none
+- Schema/migrations:   none
+- Errors encountered:  none
+- Errors resolved:     none
+
+## 2026-04-03 — Phase 6: Docker Startup + Visual QA
+- Agent:               CLAUDE_CODE
+- Why:                 Start all Docker backing services, run Prisma migration + seed, start app, verify Visual QA
+- Files added:         packages/db/prisma/migrations/20260403121528_init/ (migration.sql)
+- Files modified:      .env.dev (added STORAGE_PORT=44877, fixed PGADMIN_EMAIL to admin@inventorize.dev), deploy/compose/dev/docker-compose.storage.yml (fixed STORAGE_PORT interpolation), deploy/compose/dev/docker-compose.pgadmin.yml (removed cross-file depends_on), deploy/compose/dev/docker-compose.app.yml (removed cross-file depends_on), apps/web/src/middleware.ts (rewrote to use getToken() from next-auth/jwt — Edge Runtime compatible, no Prisma dependency), apps/web/src/server/auth/index.ts (added trustHost: true for dev)
+- Files deleted:       none
+- Schema/migrations:   20260403121528_init — 17 tables, 8 enums, all indexes, initial migration
+- Errors encountered:  (1) docker-compose.storage.yml bash parameter expansion invalid in compose; (2) docker-compose.pgadmin.yml cross-file depends_on invalid; (3) pgAdmin rejected .local TLD email; (4) middleware.ts imports Prisma via auth() wrapper — crashes in Edge Runtime; (5) Auth.js UntrustedHost error on localhost; (6) Prisma engine binary not copied to standalone output
+- Errors resolved:     (1) Added STORAGE_PORT env var, replaced interpolation; (2) Removed cross-file depends_on, rely on start.sh ordering; (3) Changed PGADMIN_EMAIL to admin@inventorize.dev + recreated pgadmin volume; (4) Rewrote middleware to use getToken() from next-auth/jwt (Edge-compatible); (5) Added trustHost: true to NextAuth config; (6) Copied libquery_engine + schema.prisma to standalone path

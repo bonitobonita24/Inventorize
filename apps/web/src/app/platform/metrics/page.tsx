@@ -2,7 +2,7 @@
 
 'use client';
 
-import { trpc } from '@/lib/trpc.js';
+import { trpc } from '@/lib/trpc';
 
 export default function PlatformMetricsPage() {
   const { data, isLoading } = trpc.platform.platformMetrics.useQuery();

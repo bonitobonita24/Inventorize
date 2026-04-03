@@ -1,17 +1,17 @@
-export { getRedisConnection, getRedisConfig, closeRedisConnection } from './connection.js';
+export { getRedisConnection, getRedisConfig, closeRedisConnection } from './connection';
 export {
   getLowStockCheckQueue,
   getEmailNotificationsQueue,
   QUEUE_NAMES,
-} from './queues/index.js';
+} from './queues/index';
 export type {
   LowStockCheckPayload,
   EmailNotificationPayload,
   JobPayload,
-} from './queues/index.js';
+} from './queues/index';
 export {
   createLowStockCheckWorker,
   createEmailNotificationsWorker,
-} from './workers/index.js';
-export { registerScheduledJobs } from './scheduler.js';
-export { cacheGet, cacheSet, cacheDel, cacheGetJson, cacheSetJson } from './cache/index.js';
+} from './workers/index';
+export { registerScheduledJobs } from './scheduler';
+export { cacheGet, cacheSet, cacheDel, cacheGetJson, cacheSetJson } from './cache/index';
