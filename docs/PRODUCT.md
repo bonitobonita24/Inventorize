@@ -1,149 +1,312 @@
-# Product Specification — Spec-Driven Platform V26
-# This is the ONLY file a human edits directly.
-# All feature descriptions, architecture decisions, and workflows live here.
-# Agents propagate changes to all other files.
-# ---
+# Inventorize
 
 ## App Identity
+Name:           Inventorize
+Tagline:        Track your inventory, anytime, anywhere.
+Industry:       SaaS / internal operations / inventory management
+Primary users:  Platform super admin, tenant admins, warehouse staff, purchasing staff
 
-- **Name:** [App Name]
-- **Slug:** [app-slug]
-- **Description:** [Brief description of what this app does]
-- **Type:** [web app / mobile app / API / admin panel / full-stack SaaS]
+## Problem Statement
+Small and mid-size companies still track inventory in spreadsheets — leading to stock discrepancies, no audit trail, and zero visibility into stock movements. Existing inventory software is either too expensive, too complex, or requires on-premise installation. Inventorize provides a multi-tenant SaaS where each company gets its own isolated inventory workspace with barcode scanning, serial tracking, purchase orders, stock movement history, and full audit logging — all from a browser. The platform operator manages tenant onboarding, billing readiness, and cross-tenant health monitoring from a super admin dashboard.
 
----
+## Core User Flows
 
-## Tech Stack (Phase 3 generates inputs.yml from this)
+1. **Super admin onboards a new tenant**: Super admin opens tenant management → enters the tenant name → system auto-generates a URL slug (lowercased, spaces and special characters replaced with hyphens). The slug field is shown pre-filled and editable before saving. A real-time uniqueness check runs as the super_admin types — if the slug is already taken, an inline error is shown ("This slug is already taken — please choose another") and save is blocked. A URL preview is shown beneath the slug field (e.g. inventorize.powerbyte.app/[slug]/dashboard). Super admin also enters the contact email → system provisions tenant workspace with subdirectory route (app.com/tenant-slug/) → super admin creates the tenant's first admin user account with tenant assignment → system generates a one-time account setup token (cryptographically random, stored as a hash in the database, 24-hour expiry, single-use) → tenant admin receives welcome email containing a link to /auth/setup?token=[token] → admin clicks link, is prompted to set their own password, and logs in normally. The token is invalidated immediately on use or after 24 hours, whichever comes first. If the link expires, the super_admin can trigger a password reset from the user management page. Once the tenant is created, the slug is permanent and cannot be changed. Error: user creation fails → roll back tenant record, show retry option.
 
-### Runtime & Language
-- Node.js version: 20
-- TypeScript: strict mode enabled
+2. **Super admin manages the platform**: Super admin views all tenants list with status (active/suspended/trial) → can suspend or reactivate a tenant → can view cross-tenant metrics (total tenants, total products across platform, active users per tenant) → can impersonate a tenant admin for support (read-only mode) → all super admin actions create AuditLog entries. Impersonation is strictly read-only: server-side tRPC middleware returns FORBIDDEN on all mutation procedures when session.isImpersonating = true. Client-side UI also disables all action buttons, form submissions, and destructive controls. A persistent banner is shown at the top of every page: "View Only — Impersonating [Tenant Name]". All page visits during impersonation are written to the platform AuditLog with the impersonated tenantId. Super admin exits impersonation by clicking an "Exit Impersonation" button that clears the flag from the session. Error: suspending a tenant with active users → confirm prompt before proceeding.
 
-### Framework
-- Primary: Next.js (App Router)
-- Mobile: Expo (if needed)
+3. **Tenant admin creates a product**: Tenant admin opens product creation form → enters productCode, barcodeValue, name, category, unit, supplierCost, markupPercent, lowStockThreshold, serialTrackingEnabled → system auto-calculates sellingPrice → save with currentQuantity = 0 → AuditLog created with tenantId. All data scoped to tenant automatically via RLS. Error: duplicate productCode within tenant → block save. Error: duplicate barcodeValue within tenant → block save.
 
-### Database & ORM
-- PostgreSQL via Prisma ORM
+4. **Tenant admin edits a product**: Open existing product → edit allowed fields → recalculate sellingPrice if pricing changed → save → AuditLog with before/after values. Error: invalid values → block save. Note: currentQuantity never editable through this form.
 
-### Authentication
-- Auth.js v5
+5. **Tenant admin or purchasing staff creates a purchase order**: Select supplier (tenant-scoped) → add products with ordered quantities → system snapshots supplierCost → optionally upload attachment → save as "draft" → later update status (ordered → partially_received → received, or cancel) → AuditLog on create and every status change. Error: no items → block. Error: attachment upload fails → preserve PO data, allow retry.
 
-### API Layer
-- tRPC
+6. **Any tenant staff records stock in**: Select product manually or scan product barcode via browser camera → enter quantity → optionally link PO → if serialTrackingEnabled, scan/enter serial numbers (count must equal quantity) → optionally upload delivery receipt → system validates → increase Product.currentQuantity atomically → create SerialNumber records as "in_stock" if serial-tracked → create StockMovementLog → AuditLog → if linked to PO, update receivedQty and PO status. Error: duplicate serial for product within tenant → block. Error: any failure → roll back entire transaction.
 
-### UI
-- shadcn/ui components
-- Tailwind CSS
+7. **Tenant admin or warehouse staff records stock out**: Select product manually or scan barcode → enter quantity, requestedByName, usedFor, optional notes → if serialTrackingEnabled, scan/select exact serials (must be "in_stock", count must equal quantity) → validate sufficient stock → decrease Product.currentQuantity atomically → update serial status to "issued" → StockMovementLog → AuditLog → optionally generate printable slip. Error: insufficient stock → block, show available. Error: serial not in_stock → block. Error: any failure → roll back.
 
-### Queue & Cache
-- Valkey (Redis-compatible)
-- BullMQ
+8. **Tenant admin performs stock adjustment**: Enter reason and notes → select product → enter quantityDelta → if serial-tracked, identify serials → validate resulting stock not negative → apply atomically → StockMovementLog → AuditLog. approvedByUserId is optional audit trail only. Error: negative result → block. Error: any failure → roll back.
 
-### File Storage
-- MinIO (S3-compatible)
+9. **Any tenant user views product history**: Open product detail → view info, current quantity, serials if enabled → view StockMovementLog → filter by date, type, user, reference. Admin sees AuditLog entries. Pricing visibility enforced by role. All data tenant-scoped — users never see other tenants' data.
 
-### Deployment
-- Docker Compose (dev/staging/prod)
-- Docker Hub for container registry
+10. **System runs low stock monitoring per tenant**: Daily scheduled job checks products per tenant where currentQuantity <= lowStockThreshold → per-tenant dashboard alert → low stock report → daily email to tenant admin and purchasing_staff → LowStockNotificationLog. Error: email fails → retry 3× with exponential backoff.
 
----
+11. **Any tenant user runs reports and exports**: Open dashboard or reports → apply filters → view data per role permissions → export as CSV → AuditLog for every export. All report data is tenant-scoped.
 
-## Core Entities
+12. **Any tenant user views the tenant dashboard**: User navigates to /[tenant-slug]/dashboard → sees KPI summary cards for the selected period (Today / This Week / This Month / Custom range). The inventory value KPI card is visible to admin and purchasing_staff only — hidden from warehouse_staff. Stock In vs Stock Out bar chart shown for the selected period. Low stock alert banner displayed if any products have currentQuantity <= lowStockThreshold; clicking the banner links to the Low Stock Report. All data is tenant-scoped — no data from other tenants is ever shown.
 
-### Tenant
-- id: UUID
-- name: string
-- slug: string (unique)
-- isActive: boolean
-- createdAt: datetime
-- updatedAt: datetime
+## Modules + Features
 
-### User
-- id: UUID
-- email: string (unique)
-- username: string (unique)
-- passwordHash: string
-- role: enum (super_admin, admin, member, viewer)
-- tenantId: UUID (FK)
-- isEmailVerified: boolean
-- createdAt: datetime
-- updatedAt: datetime
+### Platform Administration (super_admin only)
+- Tenant list with search, filter by status (active/suspended/trial)
+- Tenant create form (name, slug [auto-generated from name, editable, real-time uniqueness check, URL preview shown], contact email)
+- Tenant suspend / reactivate
+- Cross-tenant metrics dashboard (total tenants, total products, active users per tenant)
+- Tenant admin impersonation (read-only support mode)
+- Platform-level audit log viewer
 
-### AuditLog
-- id: UUID
-- userId: UUID (FK)
-- tenantId: UUID (FK)
-- action: string
-- entityType: string
-- entityId: string
-- metadata: JSON
-- createdAt: datetime
+### Dashboard (per tenant)
+- KPI summary cards: total active products, total stock quantity, low stock count, stock in/out counts for period, inventory value (admin/purchasing only)
+- Stock In vs Stock Out bar chart by period
+- Low stock alert banner
 
----
+### Products
+- Product list with search, filter, sort, pagination (tenant-scoped)
+- Product create/edit form (tenant admin only)
+- Product detail page with history tab
+- Barcode scanning for quick product lookup
+- Serial number list per product (if serial-tracked)
 
-## Roles & Permissions
+### Suppliers
+- Supplier list with search (tenant admin and purchasing_staff)
+- Supplier create/edit form (tenant-scoped)
 
-| Role        | Description                          |
-|-------------|--------------------------------------|
-| super_admin | Full platform access, all tenants     |
-| admin       | Full tenant access                   |
-| member      | Standard access within tenant         |
-| viewer      | Read-only access                      |
+### Purchase Orders
+- PO list with status filter (tenant admin and purchasing_staff)
+- PO create form with line items and attachment upload
+- PO detail page with status management
+- PO receiving (links to stock in)
 
----
+### Stock In
+- Stock in form with barcode scanning
+- PO linkage (optional)
+- Serial number entry for serial-tracked products
+- Delivery receipt upload
+- Stock in history list
 
-## Tenancy
+### Stock Out
+- Stock out form with barcode scanning
+- Serial selection for serial-tracked products
+- requestedByName and usedFor fields
+- Printable stock out slip
+- Stock out history list
 
-- **Mode:** [single / multi]
-- **Strategy:** shared schema with tenant_id column
+### Stock Adjustments
+- Adjustment form (tenant admin only)
+- Reason and notes required
+- Positive or negative quantity delta
+- Serial identification when applicable
+- Adjustment history list
 
----
+### Reports
+- Low Stock Report
+- Stock Movement Report (filterable by date, product, type, user)
+- Current Inventory Report
+- Product History Report
+- Audit Trail Report (tenant admin only, searchable)
+- CSV export for all reports
 
-## Features
-
-### Authentication
-- Email/password login
-- Session management via Auth.js v5
-- Password reset flow
-
-### Dashboard
-- [Describe main dashboard features]
-
-### Core Module
-- [Describe core business logic]
-
----
-
-## API Endpoints
-
-### Auth
-- POST /api/auth/login
-- POST /api/auth/logout
-- POST /api/auth/forgot-password
-- POST /api/auth/reset-password
+### Audit Logs
+- Searchable audit log viewer (tenant admin only — tenant-scoped)
+- Filter by action type, entity, user, date
 
 ### Users
-- GET /api/users
-- GET /api/users/:id
-- POST /api/users
-- PATCH /api/users/:id
-- DELETE /api/users/:id
+- User list (tenant admin only — shows only tenant's users)
+- User create/edit/disable (no hard delete) — managed via Auth.js v5 with sessions in PostgreSQL
+- Role assignment within tenant
 
-### [Other modules]
-- [List API endpoints]
+## Roles + Permissions
 
----
+| Role | Scope | Can do | Cannot do |
+|------|-------|--------|-----------|
+| super_admin | Platform-wide | Manage all tenants (create, suspend, reactivate). View cross-tenant metrics. Impersonate tenant admin (read-only). View platform audit logs. Create first admin user for new tenants. | Cannot modify tenant business data (products, stock, POs). Cannot create stock transactions. Cannot hard-delete tenants. |
+| admin | Tenant-scoped | Manage users within own tenant (create, update, disable). Manage products (create, edit). View and update all pricing. Manage suppliers. Manage purchase orders. Create stock in/out. Create stock adjustments. View audit logs (own tenant only). View reports and export CSV. | Cannot see other tenants' data. Cannot manage platform. Cannot hard-delete users or products. Cannot directly edit currentQuantity. |
+| warehouse_staff | Tenant-scoped | View products (selling price only). Create stock in. Create stock out. View stock movement logs. View reports and export CSV. | Cannot view supplierCost or markupPercent. Cannot manage users, suppliers, POs, or adjustments. Cannot view audit logs. Cannot see other tenants' data. |
+| purchasing_staff | Tenant-scoped | View products with all pricing. Manage suppliers. Manage purchase orders. Create stock in. View stock out (read only). View stock movement logs. View reports and export CSV. | Cannot create stock out. Cannot manage users or adjustments. Cannot view audit logs. Cannot see other tenants' data. |
 
-## Non-Functional Requirements
+## Data Entities
 
-- **Performance:** [targets]
-- **Security:** [requirements]
-- **Compliance:** [GDPR/DICT/PCI if needed]
-- **Uptime:** [SLA targets]
+### Platform-level (no tenantId)
+- Tenant: id, name, slug (unique), contactEmail, status (enum: active/suspended/trial), createdAt, updatedAt
+- User: id, tenantId → Tenant (null for super_admin), name, email, hashedPassword, role (enum: super_admin/admin/warehouse_staff/purchasing_staff), isActive, lastLoginAt, createdAt, updatedAt
 
----
+### Tenant-scoped (all have tenantId, enforced by RLS)
+- Product: id, tenantId → Tenant, productCode (unique per tenant), barcodeValue (unique per tenant), name, category, unit, supplierCost, markupPercent, sellingPrice (computed), currentQuantity (system-managed), lowStockThreshold, serialTrackingEnabled, isActive, createdAt, updatedAt
+- Supplier: id, tenantId → Tenant, name, contactPerson, phone, email, address, notes, isActive, createdAt, updatedAt
+- PurchaseOrder: id, tenantId → Tenant, poNumber (unique per tenant), supplierId → Supplier, orderDate, expectedDate, status (enum: draft/ordered/partially_received/received/cancelled), notes, attachmentUrl, createdByUserId → User, createdAt, updatedAt
+- PurchaseOrderItem: id, purchaseOrderId → PurchaseOrder, productId → Product, orderedQty, receivedQty, supplierCostSnapshot
+- StockIn: id, tenantId → Tenant, referenceNumber (unique per tenant), purchaseOrderId → PurchaseOrder (optional), receivedDate, receivedByUserId → User, notes, attachmentUrl, createdAt
+- StockInItem: id, stockInId → StockIn, productId → Product, quantity, supplierCostSnapshot
+- StockOut: id, tenantId → Tenant, referenceNumber (unique per tenant), releasedDate, releasedByUserId → User, requestedByName, usedFor, notes, printableSlipNumber, createdAt
+- StockOutItem: id, stockOutId → StockOut, productId → Product, quantity, sellingPriceSnapshot
+- SerialNumber: id, tenantId → Tenant, productId → Product, serialValue, barcodeValue, status (enum: in_stock/issued/adjusted), stockInItemId → StockInItem (optional), stockOutItemId → StockOutItem (optional), createdAt, updatedAt. Unique constraint: [tenantId, productId, serialValue].
+- StockAdjustment: id, tenantId → Tenant, adjustmentDate, reason, notes, createdByUserId → User, approvedByUserId → User (optional — audit trail only, not blocking), createdAt
+- StockAdjustmentItem: id, stockAdjustmentId → StockAdjustment, productId → Product, quantityDelta, serialNumberId → SerialNumber (optional)
+- StockMovementLog: id, tenantId → Tenant, productId → Product, movementType (enum: stock_in/stock_out/adjustment), referenceType, referenceId, quantityBefore, quantityDelta, quantityAfter, serialNumberId (optional), performedByUserId → User, requestedByName, usedFor, performedAt, notes — IMMUTABLE
+- AuditLog: id, tenantId → Tenant (null for platform-level actions), actorUserId → User, actionType, entityType, entityId, fieldChangesJson, beforeStateJson, afterStateJson, createdAt — IMMUTABLE
+- LowStockNotificationLog: id, tenantId → Tenant, productId → Product, notifiedToUserId → User, sentAt, status
 
-## Out of Scope (Phase 1)
+### Key Business Rules (CRITICAL — agents must enforce)
+- Product.currentQuantity is system-managed only — never directly editable
+- Product.sellingPrice is always computed: supplierCost + (supplierCost × markupPercent / 100)
+- Stock can never go negative — any violating transaction must be blocked
+- All stock quantity changes must be atomic — full transaction rollback on any failure
+- Every quantity change must create a StockMovementLog with before/after values
+- Every important action must create an AuditLog entry — immutable
+- All tenant-scoped data must include tenantId — enforced by RLS at database level
+- Users can never see, query, or modify another tenant's data
+- When session.isImpersonating = true: all tRPC mutations return FORBIDDEN server-side regardless of role. Client UI reflects this with disabled controls and the impersonation banner.
+- Unique constraints (productCode, barcodeValue, poNumber, referenceNumber, serialValue) are scoped per tenant, not globally
+- Serial tracking applies only when product has serialTrackingEnabled = true
+- Barcode/QR scanning is input helper only — all scanned values must pass server-side validation
+- StockOut.printableSlipNumber format: 'SO-' + zero-padded 5-digit sequential number per tenant (e.g. SO-00001, SO-00002). Auto-generated at creation time, immutable, unique per tenant. The counter is never reset — numbers only ever increase.
 
-- [Features not included in initial release]
+## Integrations
+- Email (SMTP): daily low stock notification emails per tenant, welcome emails for new tenant admins — SES in production, MailHog in dev
+- No external auth service — Auth.js v5 sessions stored in PostgreSQL (white-label, zero external dependency)
+
+## Deployment Config
+Environments: dev / staging / prod
+Hosting:      Single VPS or managed services
+Dev mode:     MODE A — WSL2 native (pre-locked)
+Docker Hub:   disabled
+
+## Mobile Needs
+None — web only. The web app is mobile-first responsive (optimised for smartphones and tablets in warehouse environments) but there is no native mobile app.
+
+## Non-functional Requirements
+Performance:    < 500ms API response for all CRUD operations. Stock transactions < 1s including all log writes. Tenant context resolution (slug → tenantId) < 10ms (cached).
+Uptime:         99.5% SLA for production (SaaS — customer-facing)
+Data retention: All traceability records kept minimum 7 years. Users disabled, never deleted. Tenants suspended, never deleted.
+Compliance:     None specific. Standard data protection practices. Cross-tenant data isolation enforced at database level via RLS.
+
+## Tenancy Model
+multi — subdirectory routing
+URL pattern: app.com/[tenant-slug]/dashboard, app.com/[tenant-slug]/products, etc.
+Shared global data: none — all business data is tenant-scoped
+Roles: global (same role set across all tenants: admin, warehouse_staff, purchasing_staff)
+DB isolation: shared schema + tenant_id column on all tenant-scoped tables + PostgreSQL RLS
+DB isolation exception: none (inventory data does not require separate schema)
+
+## User-Facing URLs
+/login                              public — Auth.js v5 authentication
+/platform/tenants                   super_admin — tenant management
+/platform/metrics                   super_admin — cross-tenant metrics
+/platform/audit-logs                super_admin — platform audit logs
+/[tenant-slug]/dashboard            tenant — main dashboard
+/[tenant-slug]/products             tenant — product list
+/[tenant-slug]/products/[id]        tenant — product detail
+/[tenant-slug]/products/[id]/history tenant — product movement history
+/[tenant-slug]/suppliers            tenant — supplier list
+/[tenant-slug]/purchase-orders      tenant — PO list
+/[tenant-slug]/purchase-orders/[id] tenant — PO detail
+/[tenant-slug]/stock-in             tenant — stock receiving
+/[tenant-slug]/stock-out            tenant — stock releasing
+/[tenant-slug]/adjustments          tenant — stock adjustments (admin only)
+/[tenant-slug]/reports              tenant — reports and exports
+/[tenant-slug]/audit-logs           tenant — audit log viewer (admin only)
+/[tenant-slug]/users                tenant — user management (admin only)
+
+## Access Control
+Public routes:    /login (Auth.js v5 sign-in page)
+Protected routes: all other routes require authenticated session via Auth.js v5
+Super-admin only: /platform/* routes
+Tenant admin only: /[tenant-slug]/users, /[tenant-slug]/audit-logs, /[tenant-slug]/adjustments
+Tenant admin + purchasing: /[tenant-slug]/purchase-orders, /[tenant-slug]/suppliers
+All tenant roles: /[tenant-slug]/dashboard, /[tenant-slug]/products, /[tenant-slug]/stock-in, /[tenant-slug]/stock-out, /[tenant-slug]/reports
+
+### Tenant isolation rules
+- Authenticated user's tenantId is extracted from Auth.js v5 session/JWT on every request (L1)
+- Every tenant-scoped DB query is automatically filtered by tenantId via Prisma middleware (L2)
+- PostgreSQL RLS provides database-level enforcement as defense-in-depth
+- A user assigned to tenant A can never access routes or data for tenant B
+- super_admin has no tenantId — accesses only /platform/* routes, never tenant business data directly
+
+## Data Sensitivity
+PII stored:       yes — user name, email, hashed password (in PostgreSQL via Auth.js v5), requestedByName
+Financial data:   yes — supplierCost, markupPercent, sellingPrice, purchase order values, inventory valuation (restricted by role, scoped by tenant)
+Health data:      no
+Audit required:   tenant creation/suspension/reactivation, user creation/role changes/disabling, login events, product create/update/pricing/threshold changes, supplier create/update, PO create/update/status change, stock in, stock out, stock adjustment, serial number creation/status changes, file upload/removal, report export, notification send/failure, every quantity-affecting stock movement, super_admin impersonation events
+GDPR/compliance:  no specific regulatory requirement — standard data protection. Cross-tenant data isolation enforced at DB level. 7-year retention. No hard deletes.
+
+## Security Requirements
+Rate limiting:    public: 60/min per IP | authenticated: 300/min per user | upload: 10/min per user
+CORS origins:     dev: localhost:* | staging: https://inventorize-staging.powerbyte.app | prod: https://inventorize.powerbyte.app
+Security layers:  L1 app-layer tenant scoping (tenantId from Auth.js session/JWT) — ACTIVE
+                  L2 Prisma auto-inject middleware (tenantId on every query) — ACTIVE
+                  L3 RBAC tRPC middleware (role-based access on every endpoint) — ACTIVE
+                  L4 PgBouncer per-tenant connection pool limits — ACTIVE
+                  L5 AuditLog (immutable record on every mutation) — ACTIVE
+                  L6 Prisma query guardrails (automatic data scoping) — ACTIVE
+
+### Inventory-specific security
+- No negative stock — enforced at database transaction level
+- Audit logs immutable — no update or delete operations permitted
+- Stock movement logs immutable — no update or delete operations permitted
+- Tenant admin cannot view other tenants' audit logs
+- Warehouse staff cannot view supplier cost or markup pricing data
+- All barcode/QR scanned values must pass server-side validation
+- super_admin actions are audit-logged separately at platform level
+
+### Browser camera scanning
+- Camera permission requested before use
+- Client-side JavaScript barcode/QR library (html5-qrcode or zxing-js)
+- Supported: Android Chrome, iOS Safari, laptop webcam
+- Manual text input fallback always available
+- Live scanner preview with clear success/error feedback
+- Large tap targets for warehouse mobile use
+
+## Domain / Base URL Expectations
+Dev:     http://localhost:[port assigned by Phase 3 — do not specify a number here]
+Stage:   https://inventorize-staging.powerbyte.app
+Prod:    https://inventorize.powerbyte.app
+
+## Infrastructure Notes
+Default: all services run in Docker Compose — mono-server for dev/staging/prod.
+Docker Hub publishing: disabled
+pgAdmin: included on all environments — credentials auto-generated by Phase 3
+CREDENTIALS.md: generated by Phase 3 — master credentials list for all envs, strictly gitignored
+Security: HTTP headers + rate limiter + DOMPurify sanitizer scaffolded by Phase 4 — always-on defaults
+Spec stress-test: Phase 2.7 runs automatically before Phase 3 — catches PRODUCT.md gaps early
+AWS path when ready: RDS, S3, ElastiCache, SES — update .env.{env} only, zero code changes.
+
+### Compose services (dev)
+- Next.js app (web server + tRPC API)
+- PostgreSQL (primary database with RLS policies — also stores Auth.js v5 sessions)
+- Valkey (cache + BullMQ job queue)
+- MinIO (S3-compatible file storage for uploads)
+- pgAdmin (database management UI)
+- PgBouncer (connection pooling with per-tenant limits)
+
+### Production path
+- Managed PostgreSQL with RLS (e.g. RDS, Supabase, or DigitalOcean Managed DB)
+- S3-compatible storage (AWS S3, Cloudflare R2, or DigitalOcean Spaces)
+- Managed Redis/Valkey (e.g. ElastiCache, Upstash)
+- PgBouncer (connection pooling)
+- SES or equivalent for email notifications
+
+## Tech Stack Preferences
+Frontend framework:        Next.js
+API style:                 tRPC
+ORM / DB layer:            Prisma
+Auth provider:             Auth.js v5 (sessions in PostgreSQL — white-label, zero external service)
+Auth strategy:             authjs
+Account setup token:       VerificationToken table (Auth.js v5 schema compatible). Fields: identifier (user email), token (hashed), expires (DateTime). Used for first-login setup links (24h expiry, single-use).
+Primary database:          PostgreSQL
+Cache / queue:             Valkey + BullMQ
+File storage:              MinIO (dev) / S3 (prod)
+UI component library:      shadcn/ui + Tailwind CSS
+
+## Design Identity
+Brand feel:         professional/enterprise
+Target aesthetic:   Clean, dense information layout optimised for fast warehouse operations. Minimal decorative elements. High contrast for readability in bright warehouse environments. Large tap targets and clear feedback for scanning workflows. Tenant branding kept minimal — platform-consistent UI.
+Industry category:  SaaS / inventory management
+Dark mode required: optional toggle
+Key constraint:     Mobile-first responsive layout — warehouse staff primarily use smartphones and tablets. Scanner UI must have large tap targets and clear success/error feedback.
+
+## Out of Scope
+- Multi-warehouse support per tenant (single location per tenant, no warehouse-to-warehouse transfers)
+- Approval workflows (approvedByUserId on StockAdjustment is optional audit trail only — not blocking)
+- Native mobile app (web app is mobile-first responsive, not a native iOS/Android app)
+- Realtime push updates or WebSocket connections
+- Advanced demand forecasting or predictive analytics
+- Supplier analytics or supplier performance scoring
+- Complex enterprise ERP features (accounting, general ledger, HR, payroll)
+- Offline-first functionality (requires internet connection)
+- Public API for external integrations
+- Multi-language / i18n support
+- Billing or invoicing (no subscription management, payment processing, or usage metering in this version)
+- Customer self-service tenant registration (super_admin onboards tenants manually)
+- Custom branding per tenant (single platform-wide look and feel)
+- Tenant data export/migration tooling
+- External IAM platform (no Logto, Auth0, or Clerk — Auth.js v5 handles all auth natively)

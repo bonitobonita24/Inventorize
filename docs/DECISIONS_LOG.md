@@ -33,3 +33,79 @@
              Execution: minimax-m2.5 (default — free tier, Cline via OpenRouter)
              Governance: gemini-2.5-flash-lite (cheapest, non-critical writes)
 - Locked:    yes — follows Rule 24
+
+---
+
+## Port Strategy (Phase 3)
+- Type:      🟤 decision
+- Date:      2026-04-03
+- Decision:  Non-standard random ports for all dev services. Base: 44874.
+             DB=44874, PgBouncer=44875, Redis=44876, MinIO=44877, MinIO Console=44878,
+             MailHog SMTP=44879, MailHog UI=44880, pgAdmin=44881, App=44884, Worker=44885, Studio=44894
+- Rationale: Rule 22 — unique random ports per project prevent conflicts on developer machines.
+             Standard ports (5432, 6379, etc.) reserved for staging/prod.
+- Locked:    yes — regenerating ports requires updating all env files and restarting services.
+
+---
+
+## Docker Image Publishing
+- Type:      🟤 decision
+- Date:      2026-04-03
+- Decision:  docker.publish: false — no Docker Hub pipeline for this project.
+- Rationale: User opted out during Phase 2 Section I. No Dockerfile or docker-publish.yml generated.
+             Deploy via pnpm build + traditional server deployment or future Feature Update.
+- Locked:    yes — to enable later, set docker.publish: true in inputs.yml and run Feature Update.
+
+---
+
+## Spec Stress-Test (Phase 2.7)
+- Type:      🟤 decision
+- Date:      2026-04-03
+- Decision:  vibe_test.enabled: true — Phase 2.7 spec stress-test enabled.
+- Rationale: Found 5 PRODUCT.md gaps before Phase 3: dashboard flow, impersonation enforcement,
+             first-login mechanism, slug collision handling, printableSlipNumber format. All resolved.
+- Locked:    yes — Phase 2.7 auto-runs before Phase 3 on any future spec update.
+
+---
+
+## First Admin Account
+- Type:      🟤 decision
+- Date:      2026-04-03
+- Decision:  Username: webmaster, Role: super_admin. Password: AI-generated 22-char, stored in CREDENTIALS.md.
+             Seeded by pnpm db:seed. Exists in ALL environments (dev, staging, prod).
+- Rationale: App cannot be accessed without an initial admin account. Bootstrap credential gate (Step 18).
+- Locked:    yes — never hardcode password in seed script. Always read from CREDENTIALS.md.
+
+---
+
+## Tenant First-Login Mechanism
+- Type:      🟤 decision
+- Date:      2026-04-03
+- Decision:  One-time setup token via /auth/setup?token=[token]. 24h expiry, single-use, stored as hash
+             in VerificationToken table (Auth.js v5 compatible). Invalidated on use or expiry.
+- Rationale: Phase 2.7 GAP 3 — welcome email login mechanism was undefined. Chosen: option A (password
+             reset link) as it avoids sending a temporary plaintext password via email.
+- Locked:    yes
+
+---
+
+## Tenant Slug Collision Handling
+- Type:      🟤 decision
+- Date:      2026-04-03
+- Decision:  Auto-generate slug from tenant name (lowercased, special chars → hyphens). Editable field
+             shown pre-filled. Real-time uniqueness check as super_admin types. Inline error on collision.
+             Slug is permanent once tenant is created.
+- Rationale: Phase 2.7 GAP 4 — slug collision handling was undefined. Chosen: editable field + inline
+             error as it provides the most transparent UX without blocking the entire form.
+- Locked:    yes
+
+---
+
+## StockOut Slip Number Format
+- Type:      🟤 decision
+- Date:      2026-04-03
+- Decision:  Format: 'SO-' + zero-padded 5-digit sequential per tenant. e.g. SO-00001, SO-00002.
+             Auto-generated at creation, immutable, unique per tenant. Counter never resets.
+- Rationale: Phase 2.7 GAP 5 — printableSlipNumber format was undefined. Standard slip number
+             format requested for warehouse operations.
+- Locked:    yes
