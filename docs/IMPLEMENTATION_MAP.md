@@ -5,7 +5,7 @@
 ## Project Info
 - App Name:     Inventorize
 - App Slug:     inventorize
-- Phase:        Phase 6 COMPLETE — Docker services running, migrations applied, seed populated, Visual QA passed
+- Phase:        Phase 8 — Iterative Buildout (Batches 1–2 complete)
 - Last Updated: 2026-04-03
 
 ---
@@ -18,7 +18,8 @@
 - [x] Phase 4: Part-by-Part Scaffold (Parts 1–5+7+8 complete, 6 skipped — no mobile)
 - [x] Phase 5: Validation (all 9 commands pass)
 - [x] Phase 6: Docker Startup
-- [ ] Phase 7: Feature Updates
+- [x] Phase 7: Feature Updates (via Phase 8 batches)
+- [ ] Phase 8: Iterative Buildout (Batches 1–2 of N complete)
 
 ---
 
@@ -101,20 +102,22 @@
   - [x] api/health/route.ts (GET /api/health → 200)
   - [x] api/trpc/[trpc]/route.ts (tRPC API handler)
   - [x] [tenantSlug]/layout.tsx (tenant layout with sidebar nav)
-  - [x] [tenantSlug]/dashboard/page.tsx
-  - [x] [tenantSlug]/products/page.tsx + [id]/page.tsx + [id]/history/page.tsx
-  - [x] [tenantSlug]/suppliers/page.tsx
-  - [x] [tenantSlug]/purchase-orders/page.tsx + [id]/page.tsx
-  - [x] [tenantSlug]/stock-in/page.tsx
-  - [x] [tenantSlug]/stock-out/page.tsx
-  - [x] [tenantSlug]/adjustments/page.tsx
-  - [x] [tenantSlug]/audit-logs/page.tsx
-  - [x] [tenantSlug]/reports/page.tsx
-  - [x] [tenantSlug]/users/page.tsx
+  - [x] [tenantSlug]/dashboard/page.tsx ✦ Batch 1: recharts KPI charts (bar, line, pie, area)
+  - [x] [tenantSlug]/products/page.tsx + [id]/page.tsx + [id]/history/page.tsx (list + detail — no create/edit form yet)
+  - [x] [tenantSlug]/suppliers/page.tsx ✦ Batch 2: create/edit form, activate/deactivate toggle
+  - [x] [tenantSlug]/purchase-orders/page.tsx + [id]/page.tsx (list + detail — no create form yet)
+  - [x] [tenantSlug]/stock-in/page.tsx ✦ Batch 1: BarcodeScanner + create form
+  - [x] [tenantSlug]/stock-out/page.tsx ✦ Batch 1: BarcodeScanner + create form
+  - [x] [tenantSlug]/adjustments/page.tsx ✦ Batch 2: create form with reason enum, BarcodeScanner, delta preview
+  - [x] [tenantSlug]/audit-logs/page.tsx ✦ Batch 2: entity type + date range filters, pagination, action badges
+  - [x] [tenantSlug]/reports/page.tsx ✦ Batch 1: CSV export (movements + low stock)
+  - [x] [tenantSlug]/users/page.tsx (list only — no create/edit/deactivate yet)
   - [x] platform/layout.tsx + tenants/page.tsx + audit-logs/page.tsx + metrics/page.tsx
 - [x] apps/web/src/server/lib/rate-limit.ts (LRU-based, 4 tiers: public/auth/api/upload)
 - [x] apps/web/src/server/lib/sanitize.ts (DOMPurify — sanitize + sanitizePlainText)
 - [x] apps/web/src/lib/trpc.ts + trpc-provider.tsx (client-side tRPC hooks)
+- [x] apps/web/src/lib/csv-export.ts ✦ Batch 1: downloadCsv() utility for client-side CSV generation
+- [x] apps/web/src/components/barcode-scanner.tsx ✦ Batch 1: html5-qrcode camera scanner + manual input
 
 ### Docker Hub Pipeline — COMPLETE (generated alongside Parts 3–5)
 - [x] .github/workflows/docker-publish.yml (build + push on merge to main)

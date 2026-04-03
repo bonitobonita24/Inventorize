@@ -1548,3 +1548,1208 @@ Build passes cleanly. All three Batch 2 features are implemented:
 3. **Audit logs page** — Filter bar with entity type dropdown, start/end date pickers, clear button, entry count display, pagination controls, action-type colored badges (CREATE/UPDATE/DELETE), split entity type and entity ID into separate columns
 
 All three pages follow the same patterns as Batch 1 (stock-in/stock-out). Ready for Batch 3 when you are — the remaining unbuilt features from PRODUCT.md include: purchase order workflow, product detail/edit form, user management CRUD, categories management, low stock threshold configuration, product history page, and settings page.
+
+---
+
+_**User (2026-04-03 13:01:07Z)**_
+
+im ready
+
+---
+
+_**Agent (claude-opus-4-6 2026-04-03 13:01:14Z)**_
+
+_**Agent (claude-opus-4-6 2026-04-03 13:01:15Z)**_
+
+Let me check the current state to propose the next batch.
+
+_**Agent (claude-opus-4-6 2026-04-03 13:01:16Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./docs/IMPLEMENTATION_MAP.md`
+
+```text
+1	# Implementation Map — Spec-Driven Platform V26
+2	# Current build state after each phase
+3	# ---
+4	
+5	## Project Info
+6	- App Name:     Inventorize
+7	- App Slug:     inventorize
+8	- Phase:        Phase 6 COMPLETE — Docker services running, migrations applied, seed populated, Visual QA passed
+9	- Last Updated: 2026-04-03
+10	
+11	---
+12	
+13	## Phase Status
+14	- [x] Phase 0: Bootstrap
+15	- [ ] Phase 1: Dev Environment Setup (optional)
+16	- [x] Phase 2: Requirements & Architecture
+17	- [x] Phase 3: Config Generation
+18	- [x] Phase 4: Part-by-Part Scaffold (Parts 1–5+7+8 complete, 6 skipped — no mobile)
+19	- [x] Phase 5: Validation (all 9 commands pass)
+20	- [x] Phase 6: Docker Startup
+21	- [ ] Phase 7: Feature Updates
+22	
+23	---
+24	
+25	## Scaffold Status (Phase 4 Parts)
+26	
+27	### Part 1: Root Config Files — COMPLETE
+28	- [x] pnpm-workspace.yaml
+29	- [x] turbo.json
+30	- [x] tsconfig.base.json
+31	- [x] .editorconfig
+32	- [x] .prettierrc
+33	- [x] .eslintrc.js
+34	- [x] .nvmrc (Node 22)
+35	- [x] .gitignore (final)
+36	
+37	### Part 2: packages/shared + packages/api-client — COMPLETE
+38	- [x] packages/shared/package.json + tsconfig.json
+39	- [x] packages/shared/src/enums/index.ts (7 enums: UserRole, TenantStatus, POStatus, SerialNumberStatus, MovementType, NotificationStatus, AdjustmentReason)
+40	- [x] packages/shared/src/types/index.ts (17 entity interfaces + AppSession + Pagination)
+41	- [x] packages/shared/src/schemas/index.ts (Zod schemas: create/update/filter for all entities)
+42	- [x] packages/api-client/package.json + tsconfig.json
+43	- [x] packages/api-client/src/index.ts (typed tRPC client factory + re-exports)
+44	
+45	### Part 3: packages/db (Prisma) — COMPLETE
+46	- [x] packages/db/package.json + tsconfig.json
+47	- [x] prisma/schema.prisma (17 models, 8 enums, full relations + tenant-scoped indexes)
+48	- [x] prisma/migrations/20260403121528_init (initial migration — 17 tables, 8 enums)
+49	- [x] prisma/seed.ts (webmaster + demo tenant + demo users/suppliers/products)
+50	- [x] src/index.ts (Prisma singleton + platformPrisma + AsyncLocalStorage tenant context)
+51	- [x] src/context.ts (TenantContext + withTenantContext + currentTenantId/currentUserId)
+52	- [x] src/audit.ts (L5 immutable AuditLog write helper)
+53	- [x] src/middleware/tenant-guard.ts (L6 Prisma $allOperations extension)
+54	- [x] src/rls.ts (L2 PostgreSQL RLS helper + rlsStatements + TENANT_SCOPED_TABLES)
+55	
+56	### Part 4: packages/ui + packages/jobs + packages/storage — COMPLETE
+57	- [x] packages/ui/package.json + tsconfig.json (DOM lib, peer deps for React + Tailwind)
+58	- [x] packages/ui/src/lib/utils.ts (cn() utility — clsx + tailwind-merge)
+59	- [x] packages/ui/src/styles/globals.css (Tailwind + CSS custom properties for light/dark)
+60	- [x] packages/ui/src/components/ (16 components: button, input, label, card, table, badge, dialog, select, dropdown-menu, toast, separator, avatar, checkbox, switch, tabs, tooltip, skeleton, alert-dialog)
+61	- [x] packages/jobs/package.json + tsconfig.json (BullMQ + ioredis)
+62	- [x] packages/jobs/src/connection.ts (Redis singleton with env var validation)
+63	- [x] packages/jobs/src/queues/ (low-stock-check cron daily, email-notifications event-driven, typed payloads with tenantId+userId)
+64	- [x] packages/jobs/src/workers/ (worker factories for low-stock-check + email-notifications)
+65	- [x] packages/jobs/src/scheduler.ts (registers daily cron for low-stock-check at 00:00 UTC)
+66	- [x] packages/jobs/src/cache/index.ts (tenant-prefixed Valkey cache: get/set/del + JSON variants)
+67	- [x] packages/storage/package.json + tsconfig.json (@aws-sdk/client-s3 + presigner)
+68	- [x] packages/storage/src/client.ts (S3Client singleton, forcePathStyle for MinIO)
+69	- [x] packages/storage/src/validation.ts (MIME whitelist: PDF/JPEG/PNG, SVG/HTML blocked, 10MB limit, randomized filenames)
+70	- [x] packages/storage/src/operations.ts (uploadFile, getDownloadUrl, deleteFile, fileExists — all tenant-scoped via path prefix check)
+71	
+72	### Part 5: apps/web (Next.js) — COMPLETE
+73	- [x] apps/web/package.json + tsconfig.json
+74	- [x] apps/web/next.config.ts (standalone output, 6 HTTP security headers, CSP)
+75	- [x] apps/web/Dockerfile (multi-stage: deps → build → runner, standalone output)
+76	- [x] apps/web/.dockerignore
+77	- [x] apps/web/postcss.config.js + tailwind.config.ts
+78	- [x] apps/web/src/env.ts (Zod-validated env vars at startup)
+79	- [x] apps/web/src/middleware.ts (tenant resolution from URL path, auth guard, session cross-check)
+80	- [x] apps/web/src/server/auth/index.ts (Auth.js v5 Credentials provider, bcrypt, JWT + session callbacks)
+81	- [x] apps/web/src/server/trpc/context.ts (tRPC context with session, userId, tenantId, roles)
+82	- [x] apps/web/src/server/trpc/trpc.ts (base procedures, rate limiting wired in)
+83	- [x] apps/web/src/server/trpc/router.ts (root router aggregating all sub-routers)
+84	- [x] apps/web/src/server/trpc/middleware/rbac.ts (L3 RBAC role guard)
+85	- [x] apps/web/src/server/trpc/middleware/tenant.ts (L1 tenant scope enforcement)
+86	- [x] apps/web/src/server/trpc/routers/ — 10 routers:
+87	  - [x] product.router.ts (CRUD, list with cursor pagination, stock history)
+88	  - [x] supplier.router.ts (CRUD, list)
+89	  - [x] purchase-order.router.ts (CRUD, status transitions, list)
+90	  - [x] stock-in.router.ts (create with serial numbers, list)
+91	  - [x] stock-out.router.ts (create with slip number, list)
+92	  - [x] stock-adjustment.router.ts (create, list)
+93	  - [x] user.router.ts (CRUD, role assignment, impersonation)
+94	  - [x] audit-log.router.ts (list with filters)
+95	  - [x] report.router.ts (dashboard KPIs, low stock, movement history, valuation)
+96	  - [x] platform.router.ts (superadmin: tenant CRUD, metrics, audit — separate Prisma instance)
+97	- [x] apps/web/src/app/ — Pages:
+98	  - [x] layout.tsx (root layout with TRPCProvider)
+99	  - [x] login/page.tsx
+100	  - [x] page.tsx (redirect to login)
+101	  - [x] api/health/route.ts (GET /api/health → 200)
+102	  - [x] api/trpc/[trpc]/route.ts (tRPC API handler)
+103	  - [x] [tenantSlug]/layout.tsx (tenant layout with sidebar nav)
+104	  - [x] [tenantSlug]/dashboard/page.tsx
+105	  - [x] [tenantSlug]/products/page.tsx + [id]/page.tsx + [id]/history/page.tsx
+106	  - [x] [tenantSlug]/suppliers/page.tsx
+107	  - [x] [tenantSlug]/purchase-orders/page.tsx + [id]/page.tsx
+108	  - [x] [tenantSlug]/stock-in/page.tsx
+109	  - [x] [tenantSlug]/stock-out/page.tsx
+110	  - [x] [tenantSlug]/adjustments/page.tsx
+111	  - [x] [tenantSlug]/audit-logs/page.tsx
+112	  - [x] [tenantSlug]/reports/page.tsx
+113	  - [x] [tenantSlug]/users/page.tsx
+114	  - [x] platform/layout.tsx + tenants/page.tsx + audit-logs/page.tsx + metrics/page.tsx
+115	- [x] apps/web/src/server/lib/rate-limit.ts (LRU-based, 4 tiers: public/auth/api/upload)
+116	- [x] apps/web/src/server/lib/sanitize.ts (DOMPurify — sanitize + sanitizePlainText)
+117	- [x] apps/web/src/lib/trpc.ts + trpc-provider.tsx (client-side tRPC hooks)
+118	
+119	### Docker Hub Pipeline — COMPLETE (generated alongside Parts 3–5)
+120	- [x] .github/workflows/docker-publish.yml (build + push on merge to main)
+121	- [x] deploy/compose/push.sh (manual promotion: dev → staging → prod)
+122	
+123	### Part 6: apps/mobile — SKIPPED (no mobile declared in inputs.yml)
+124	
+125	### Part 7: deploy/compose + tools — COMPLETE
+126	- [x] deploy/compose/dev/ (docker-compose.db.yml, .cache.yml, .storage.yml, .infra.yml, .app.yml, .pgadmin.yml, pgadmin-servers.json)
+127	- [x] deploy/compose/stage/ (docker-compose.db.yml, .cache.yml, .storage.yml, .app.yml, .pgadmin.yml, pgadmin-servers.json — no build: key, Docker Hub pull only)
+128	- [x] deploy/compose/prod/ (docker-compose.db.yml, .cache.yml, .storage.yml, .app.yml, .pgadmin.yml, pgadmin-servers.json — no build: key, Docker Hub pull only)
+129	- [x] deploy/compose/start.sh (env-aware startup — db first, --build for dev app)
+130	- [x] tools/validate-inputs.mjs (checks required top-level keys + ports.dev.base)
+131	- [x] tools/check-env.mjs (validates 29 required vars in .env.dev, rejects placeholders)
+132	- [x] tools/check-product-sync.mjs (PRODUCT.md ↔ inputs.yml sync + private tag leakage)
+133	- [x] tools/hydration-lint.mjs (SSR mismatch pattern scanner for apps/)
+134	- [x] COMMANDS.md (master dev command reference — Docker, DB, testing, pipeline, credentials)
+135	- [x] .socraticodecontextartifacts.json (4 artifacts: schema, map, decisions, product)
+136	
+137	### Part 8: CI + Governance — COMPLETE
+138	- [x] .github/workflows/ci.yml (governance gates, quality matrix: lint/typecheck/test/build, security audit)
+139	- [x] MANIFEST.txt (complete file listing across all 8 Parts)
+140	- [ ] SocratiCode initial index (deferred — requires Docker running + SocratiCode MCP active)
+141	
+142	---
+143	
+144	## Generated Files Summary
+145	
+146	### Root Config
+147	- [x] pnpm-workspace.yaml
+148	- [x] turbo.json
+149	- [x] tsconfig.base.json
+150	- [x] .editorconfig
+151	- [x] .prettierrc
+152	- [x] .eslintrc.js
+153	- [x] .nvmrc
+154	- [x] package.json
+155	- [x] .npmrc
+156	
+157	### Governance Docs
+158	- [x] CLAUDE.md
+159	- [x] .clinerules
+160	- [x] docs/DECISIONS_LOG.md
+161	- [x] docs/CHANGELOG_AI.md
+162	- [x] docs/PRODUCT.md (complete — Phase 2 + 2.7 gaps resolved)
+163	- [x] docs/IMPLEMENTATION_MAP.md (this file)
+164	
+165	### Phase 3 Generated Files
+166	- [x] inputs.yml
+167	- [x] inputs.schema.json
+168	- [x] .env.dev
+169	- [x] .env.staging
+170	- [x] .env.prod
+171	- [x] .env.example
+172	- [x] CREDENTIALS.md (gitignored — all credentials for all environments)
+173	
+174	### Memory & Logs
+175	- [x] .cline/memory/lessons.md
+176	- [x] .cline/memory/agent-log.md
+177	- [x] .cline/STATE.md
+178	
+179	### MCP & SpecStory
+180	- [x] .vscode/mcp.json
+181	- [x] .specstory/config.json
+182	- [x] .specstory/specs/v26-master-prompt.md
+183	
+184	### Skills
+185	- [x] .github/skills/spec-driven-core/SKILL.md
+186	- [x] scripts/log-lesson.sh
+187	
+188	### Deploy
+189	- [x] .github/workflows/docker-publish.yml
+190	- [x] deploy/compose/push.sh
+191	- [x] deploy/compose/dev/ (6 compose files + pgadmin-servers.json)
+192	- [x] deploy/compose/stage/ (5 compose files + pgadmin-servers.json)
+193	- [x] deploy/compose/prod/ (5 compose files + pgadmin-servers.json)
+194	- [x] deploy/compose/start.sh
+195	
+196	### Tools
+197	- [x] tools/validate-inputs.mjs
+198	- [x] tools/check-env.mjs
+199	- [x] tools/check-product-sync.mjs
+200	- [x] tools/hydration-lint.mjs
+201	
+202	### Other
+203	- [x] COMMANDS.md
+204	- [x] .socraticodecontextartifacts.json
+205
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-04-03 13:01:16Z)**_
+
+<tool-use data-tool-type="search" data-tool-name="Glob"><details>
+<summary>Tool use: **Glob**</summary>
+ pattern `apps/web/src/app/[tenantSlug]/**/page.tsx`
+
+```text
+No files found
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-04-03 13:01:20Z)**_
+
+<tool-use data-tool-type="search" data-tool-name="Glob"><details>
+<summary>Tool use: **Glob**</summary>
+ pattern `apps/web/src/app/\[tenantSlug\]/**/page.tsx`
+
+```text
+apps/web/src/app/[tenantSlug]/purchase-orders/[id]/page.tsx
+apps/web/src/app/[tenantSlug]/purchase-orders/page.tsx
+apps/web/src/app/[tenantSlug]/products/[id]/page.tsx
+apps/web/src/app/[tenantSlug]/products/[id]/history/page.tsx
+apps/web/src/app/[tenantSlug]/products/page.tsx
+apps/web/src/app/[tenantSlug]/users/page.tsx
+apps/web/src/app/[tenantSlug]/stock-in/page.tsx
+apps/web/src/app/[tenantSlug]/stock-out/page.tsx
+apps/web/src/app/[tenantSlug]/dashboard/page.tsx
+apps/web/src/app/[tenantSlug]/reports/page.tsx
+apps/web/src/app/[tenantSlug]/suppliers/page.tsx
+apps/web/src/app/[tenantSlug]/adjustments/page.tsx
+apps/web/src/app/[tenantSlug]/audit-logs/page.tsx
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-04-03 13:01:25Z)**_
+
+Let me check what the existing pages look like to understand which still need enhancement.
+
+_**Agent (claude-opus-4-6 2026-04-03 13:01:28Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./apps/web/src/app/[tenantSlug]/products/page.tsx`
+
+```text
+1	// Products list page — searchable, filterable product catalog
+2	
+3	'use client';
+4	
+5	import { useState } from 'react';
+6	import { trpc } from '@/lib/trpc';
+7	import Link from 'next/link';
+8	import { useParams } from 'next/navigation';
+9	
+10	export default function ProductsPage() {
+11	  const params = useParams();
+12	  const tenantSlug = params?.tenantSlug as string | undefined;
+13	  const [search, setSearch] = useState('');
+14	  const [page, setPage] = useState(1);
+15	
+16	  const { data, isLoading } = trpc.product.list.useQuery({
+17	    page,
+18	    limit: 50,
+19	    search: search.length > 0 ? search : undefined,
+20	  });
+21	
+22	  if (tenantSlug === undefined) return null;
+23	
+24	  return (
+25	    <div className="space-y-6">
+26	      <div className="flex items-center justify-between">
+27	        <h1 className="text-2xl font-bold">Products</h1>
+28	      </div>
+29	
+30	      <input
+31	        type="text"
+32	        placeholder="Search by name, code, or barcode..."
+33	        value={search}
+34	        onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+35	        className="flex h-10 w-full max-w-sm rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+36	      />
+37	
+38	      {isLoading ? (
+39	        <div>Loading products...</div>
+40	      ) : (
+41	        <>
+42	          <div className="rounded-lg border border-border">
+43	            <table className="w-full text-sm">
+44	              <thead>
+45	                <tr className="border-b border-border bg-muted/50">
+46	                  <th className="px-4 py-3 text-left font-medium">Code</th>
+47	                  <th className="px-4 py-3 text-left font-medium">Name</th>
+48	                  <th className="px-4 py-3 text-left font-medium">Category</th>
+49	                  <th className="px-4 py-3 text-right font-medium">Quantity</th>
+50	                  <th className="px-4 py-3 text-right font-medium">Price</th>
+51	                  <th className="px-4 py-3 text-left font-medium">Status</th>
+52	                </tr>
+53	              </thead>
+54	              <tbody>
+55	                {data?.items.map((product) => (
+56	                  <tr key={product.id} className="border-b border-border">
+57	                    <td className="px-4 py-3 font-mono text-xs">
+58	                      <Link href={`/${tenantSlug}/products/${product.id}`} className="text-primary underline">
+59	                        {product.productCode}
+60	                      </Link>
+61	                    </td>
+62	                    <td className="px-4 py-3">{product.name}</td>
+63	                    <td className="px-4 py-3">{product.category}</td>
+64	                    <td className={`px-4 py-3 text-right ${
+65	                      product.currentQuantity <= product.lowStockThreshold ? 'text-destructive font-medium' : ''
+66	                    }`}>
+67	                      {product.currentQuantity} {product.unit}
+68	                    </td>
+69	                    <td className="px-4 py-3 text-right">
+70	                      {'sellingPrice' in product ? `$${Number(product.sellingPrice).toFixed(2)}` : '-'}
+71	                    </td>
+72	                    <td className="px-4 py-3">
+73	                      <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${
+74	                        product.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+75	                      }`}>
+76	                        {product.isActive ? 'Active' : 'Inactive'}
+77	                      </span>
+78	                    </td>
+79	                  </tr>
+80	                ))}
+81	              </tbody>
+82	            </table>
+83	          </div>
+84	
+85	          {data !== undefined && data.totalPages > 1 && (
+86	            <div className="flex items-center gap-2">
+87	              <button
+88	                onClick={() => setPage((p) => Math.max(1, p - 1))}
+89	                disabled={page === 1}
+90	                className="rounded-md border border-border px-3 py-1 text-sm disabled:opacity-50"
+91	              >
+92	                Previous
+93	              </button>
+94	              <span className="text-sm text-muted-foreground">
+95	                Page {data.page} of {data.totalPages}
+96	              </span>
+97	              <button
+98	                onClick={() => setPage((p) => Math.min(data.totalPages, p + 1))}
+99	                disabled={page === data.totalPages}
+100	                className="rounded-md border border-border px-3 py-1 text-sm disabled:opacity-50"
+101	              >
+102	                Next
+103	              </button>
+104	            </div>
+105	          )}
+106	        </>
+107	      )}
+108	    </div>
+109	  );
+110	}
+111
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-04-03 13:01:28Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./apps/web/src/app/[tenantSlug]/products/[id]/page.tsx`
+
+```text
+1	// Product detail page — view single product with full info
+2	
+3	'use client';
+4	
+5	import { useParams } from 'next/navigation';
+6	import { trpc } from '@/lib/trpc';
+7	import Link from 'next/link';
+8	
+9	export default function ProductDetailPage() {
+10	  const params = useParams();
+11	  const tenantSlug = params?.tenantSlug as string | undefined;
+12	  const id = params?.id as string | undefined;
+13	  const { data: product, isLoading } = trpc.product.byId.useQuery(
+14	    { id: id ?? '' },
+15	    { enabled: id !== undefined },
+16	  );
+17	
+18	  if (tenantSlug === undefined || id === undefined) return null;
+19	
+20	  if (isLoading) {
+21	    return <div className="p-4">Loading product...</div>;
+22	  }
+23	
+24	  if (product === null || product === undefined) {
+25	    return <div className="p-4">Product not found.</div>;
+26	  }
+27	
+28	  return (
+29	    <div className="space-y-6">
+30	      <div className="flex items-center gap-4">
+31	        <Link href={`/${tenantSlug}/products`} className="text-sm text-muted-foreground hover:underline">
+32	          &larr; Back to Products
+33	        </Link>
+34	      </div>
+35	
+36	      <h1 className="text-2xl font-bold">{product.name}</h1>
+37	
+38	      <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
+39	        <div className="rounded-lg border border-border p-4">
+40	          <p className="text-sm text-muted-foreground">Product Code</p>
+41	          <p className="font-mono">{product.productCode}</p>
+42	        </div>
+43	        <div className="rounded-lg border border-border p-4">
+44	          <p className="text-sm text-muted-foreground">Barcode</p>
+45	          <p className="font-mono">{product.barcodeValue}</p>
+46	        </div>
+47	        <div className="rounded-lg border border-border p-4">
+48	          <p className="text-sm text-muted-foreground">Category</p>
+49	          <p>{product.category}</p>
+50	        </div>
+51	        <div className="rounded-lg border border-border p-4">
+52	          <p className="text-sm text-muted-foreground">Unit</p>
+53	          <p>{product.unit}</p>
+54	        </div>
+55	        <div className="rounded-lg border border-border p-4">
+56	          <p className="text-sm text-muted-foreground">Current Quantity</p>
+57	          <p className="text-xl font-bold">{product.currentQuantity}</p>
+58	        </div>
+59	        <div className="rounded-lg border border-border p-4">
+60	          <p className="text-sm text-muted-foreground">Low Stock Threshold</p>
+61	          <p>{product.lowStockThreshold}</p>
+62	        </div>
+63	      </div>
+64	
+65	      <div className="mt-4">
+66	        <Link
+67	          href={`/${tenantSlug}/products/${product.id}/history`}
+68	          className="text-sm text-primary underline"
+69	        >
+70	          View Movement History &rarr;
+71	        </Link>
+72	      </div>
+73	    </div>
+74	  );
+75	}
+76
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-04-03 13:01:29Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./apps/web/src/app/[tenantSlug]/users/page.tsx`
+
+```text
+1	// Users management page — admin only
+2	
+3	'use client';
+4	
+5	import { useState } from 'react';
+6	import { trpc } from '@/lib/trpc';
+7	
+8	export default function UsersPage() {
+9	  const [page] = useState(1);
+10	  const { data, isLoading } = trpc.user.list.useQuery({ page, limit: 50 });
+11	
+12	  return (
+13	    <div className="space-y-6">
+14	      <h1 className="text-2xl font-bold">Users</h1>
+15	
+16	      {isLoading ? (
+17	        <div>Loading users...</div>
+18	      ) : (
+19	        <div className="rounded-lg border border-border">
+20	          <table className="w-full text-sm">
+21	            <thead>
+22	              <tr className="border-b border-border bg-muted/50">
+23	                <th className="px-4 py-3 text-left font-medium">Name</th>
+24	                <th className="px-4 py-3 text-left font-medium">Email</th>
+25	                <th className="px-4 py-3 text-left font-medium">Role</th>
+26	                <th className="px-4 py-3 text-left font-medium">Status</th>
+27	                <th className="px-4 py-3 text-left font-medium">Last Login</th>
+28	              </tr>
+29	            </thead>
+30	            <tbody>
+31	              {data?.items.map((user) => (
+32	                <tr key={user.id} className="border-b border-border">
+33	                  <td className="px-4 py-3 font-medium">{user.name}</td>
+34	                  <td className="px-4 py-3">{user.email}</td>
+35	                  <td className="px-4 py-3">
+36	                    <span className="inline-block rounded-full bg-secondary px-2 py-0.5 text-xs font-medium">
+37	                      {user.role}
+38	                    </span>
+39	                  </td>
+40	                  <td className="px-4 py-3">
+41	                    <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${
+42	                      user.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+43	                    }`}>
+44	                      {user.isActive ? 'Active' : 'Inactive'}
+45	                    </span>
+46	                  </td>
+47	                  <td className="px-4 py-3 text-xs">
+48	                    {user.lastLoginAt !== null ? new Date(user.lastLoginAt).toLocaleString() : 'Never'}
+49	                  </td>
+50	                </tr>
+51	              ))}
+52	            </tbody>
+53	          </table>
+54	        </div>
+55	      )}
+56	    </div>
+57	  );
+58	}
+59
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-04-03 13:01:30Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./apps/web/src/app/[tenantSlug]/purchase-orders/page.tsx`
+
+```text
+1	// Purchase orders list page
+2	
+3	'use client';
+4	
+5	import { useState } from 'react';
+6	import { trpc } from '@/lib/trpc';
+7	import Link from 'next/link';
+8	import { useParams } from 'next/navigation';
+9	
+10	export default function PurchaseOrdersPage() {
+11	  const params = useParams();
+12	  const tenantSlug = params?.tenantSlug as string | undefined;
+13	  const [page] = useState(1);
+14	
+15	  const { data, isLoading } = trpc.purchaseOrder.list.useQuery({ page, limit: 50 });
+16	
+17	  if (tenantSlug === undefined) return null;
+18	
+19	  return (
+20	    <div className="space-y-6">
+21	      <h1 className="text-2xl font-bold">Purchase Orders</h1>
+22	
+23	      {isLoading ? (
+24	        <div>Loading purchase orders...</div>
+25	      ) : (
+26	        <div className="rounded-lg border border-border">
+27	          <table className="w-full text-sm">
+28	            <thead>
+29	              <tr className="border-b border-border bg-muted/50">
+30	                <th className="px-4 py-3 text-left font-medium">PO Number</th>
+31	                <th className="px-4 py-3 text-left font-medium">Supplier ID</th>
+32	                <th className="px-4 py-3 text-left font-medium">Date</th>
+33	                <th className="px-4 py-3 text-left font-medium">Status</th>
+34	              </tr>
+35	            </thead>
+36	            <tbody>
+37	              {data?.items.map((po) => (
+38	                <tr key={po.id} className="border-b border-border">
+39	                  <td className="px-4 py-3 font-mono text-xs">
+40	                    <Link href={`/${tenantSlug}/purchase-orders/${po.id}`} className="text-primary underline">
+41	                      {po.poNumber}
+42	                    </Link>
+43	                  </td>
+44	                  <td className="px-4 py-3 font-mono text-xs">{po.supplierId}</td>
+45	                  <td className="px-4 py-3 text-xs">{new Date(po.orderDate).toLocaleDateString()}</td>
+46	                  <td className="px-4 py-3">
+47	                    <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${
+48	                      po.status === 'received' ? 'bg-green-100 text-green-800' :
+49	                      po.status === 'cancelled' ? 'bg-red-100 text-red-800' :
+50	                      po.status === 'ordered' ? 'bg-blue-100 text-blue-800' :
+51	                      'bg-yellow-100 text-yellow-800'
+52	                    }`}>
+53	                      {po.status}
+54	                    </span>
+55	                  </td>
+56	                </tr>
+57	              ))}
+58	            </tbody>
+59	          </table>
+60	        </div>
+61	      )}
+62	    </div>
+63	  );
+64	}
+65
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-04-03 13:01:36Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./apps/web/src/server/trpc/routers/product.router.ts`
+
+```text
+1	// Product router — tenant-scoped CRUD + search + history
+2	
+3	import { z } from 'zod';
+4	import { createTRPCRouter, tenantProcedure } from '../trpc';
+5	import { requireRole } from '../middleware/rbac';
+6	import { UserRole } from '@inventorize/shared/enums';
+7	import { prisma } from '@inventorize/db';
+8	import { withTenantContext } from '@inventorize/db';
+9	
+10	export const productRouter = createTRPCRouter({
+11	  list: tenantProcedure
+12	    .input(
+13	      z.object({
+14	        page: z.number().int().min(1).default(1),
+15	        limit: z.number().int().min(1).max(200).default(50),
+16	        search: z.string().optional(),
+17	        category: z.string().optional(),
+18	        isActive: z.boolean().optional(),
+19	      }).strict(),
+20	    )
+21	    .query(async ({ ctx, input }) => {
+22	      // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
+23	      const tenantId = ctx.tenantId!;
+24	      // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
+25	      const userId = ctx.userId!;
+26	      return withTenantContext(
+27	        { tenantId, userId },
+28	        async () => {
+29	          const where = {
+30	            tenantId,
+31	            ...(input.search !== undefined
+32	              ? {
+33	                  OR: [
+34	                    { name: { contains: input.search, mode: 'insensitive' as const } },
+35	                    { productCode: { contains: input.search, mode: 'insensitive' as const } },
+36	                    { barcodeValue: { contains: input.search, mode: 'insensitive' as const } },
+37	                  ],
+38	                }
+39	              : {}),
+40	            ...(input.category !== undefined ? { category: input.category } : {}),
+41	            ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
+42	          };
+43	
+44	          const [items, total] = await Promise.all([
+45	            prisma.product.findMany({
+46	              where,
+47	              skip: (input.page - 1) * input.limit,
+48	              take: input.limit,
+49	              orderBy: { name: 'asc' },
+50	              select: {
+51	                id: true,
+52	                productCode: true,
+53	                barcodeValue: true,
+54	                name: true,
+55	                category: true,
+56	                unit: true,
+57	                currentQuantity: true,
+58	                lowStockThreshold: true,
+59	                serialTrackingEnabled: true,
+60	                isActive: true,
+61	                // Pricing visible based on role — warehouse_staff excluded
+62	                ...(ctx.roles.includes(UserRole.WAREHOUSE_STAFF)
+63	                  ? { sellingPrice: true }
+64	                  : {
+65	                      supplierCost: true,
+66	                      markupPercent: true,
+67	                      sellingPrice: true,
+68	                    }),
+69	              },
+70	            }),
+71	            prisma.product.count({ where }),
+72	          ]);
+73	
+74	          return {
+75	            items,
+76	            total,
+77	            page: input.page,
+78	            limit: input.limit,
+79	            totalPages: Math.ceil(total / input.limit),
+80	          };
+81	        },
+82	      );
+83	    }),
+84	
+85	  byId: tenantProcedure
+86	    .input(z.object({ id: z.string().cuid() }).strict())
+87	    .query(async ({ ctx, input }) => {
+88	      // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
+89	      const tenantId = ctx.tenantId!;
+90	      // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
+91	      const userId = ctx.userId!;
+92	      return withTenantContext(
+93	        { tenantId, userId },
+94	        async () => {
+95	          const product = await prisma.product.findFirst({
+96	            where: { id: input.id, tenantId },
+97	          });
+98	          if (product === null) {
+99	            return null;
+100	          }
+101	          return product;
+102	        },
+103	      );
+104	    }),
+105	
+106	  create: tenantProcedure
+107	    .use(requireRole(UserRole.ADMIN))
+108	    .input(
+109	      z.object({
+110	        productCode: z.string().min(1).max(50),
+111	        barcodeValue: z.string().min(1).max(100),
+112	        name: z.string().min(1).max(200),
+113	        category: z.string().min(1).max(100),
+114	        unit: z.string().min(1).max(50),
+115	        supplierCost: z.number().min(0),
+116	        markupPercent: z.number().min(0),
+117	        lowStockThreshold: z.number().int().min(0),
+118	        serialTrackingEnabled: z.boolean(),
+119	      }).strict(),
+120	    )
+121	    .mutation(async ({ ctx, input }) => {
+122	      const tenantId = ctx.tenantId!;
+123	      const userId = ctx.userId!;
+124	      return withTenantContext(
+125	        { tenantId, userId },
+126	        async () => {
+127	          const sellingPrice = input.supplierCost + (input.supplierCost * input.markupPercent / 100);
+128	
+129	          return prisma.product.create({
+130	            data: {
+131	              ...input,
+132	              tenantId,
+133	              sellingPrice,
+134	              currentQuantity: 0,
+135	              isActive: true,
+136	            },
+137	          });
+138	        },
+139	      );
+140	    }),
+141	
+142	  update: tenantProcedure
+143	    .use(requireRole(UserRole.ADMIN))
+144	    .input(
+145	      z.object({
+146	        id: z.string().cuid(),
+147	        productCode: z.string().min(1).max(50).optional(),
+148	        barcodeValue: z.string().min(1).max(100).optional(),
+149	        name: z.string().min(1).max(200).optional(),
+150	        category: z.string().min(1).max(100).optional(),
+151	        unit: z.string().min(1).max(50).optional(),
+152	        supplierCost: z.number().min(0).optional(),
+153	        markupPercent: z.number().min(0).optional(),
+154	        lowStockThreshold: z.number().int().min(0).optional(),
+155	        serialTrackingEnabled: z.boolean().optional(),
+156	        isActive: z.boolean().optional(),
+157	      }).strict(),
+158	    )
+159	    .mutation(async ({ ctx, input }) => {
+160	      const tenantId = ctx.tenantId!;
+161	      const userId = ctx.userId!;
+162	      return withTenantContext(
+163	        { tenantId, userId },
+164	        async () => {
+165	          const { id, ...data } = input;
+166	
+167	          // Recalculate sellingPrice if pricing fields changed
+168	          const updateData: Record<string, unknown> = { ...data };
+169	          if (data.supplierCost !== undefined || data.markupPercent !== undefined) {
+170	            const existing = await prisma.product.findFirst({
+171	              where: { id, tenantId },
+172	            });
+173	            if (existing === null) {
+174	              throw new Error('Resource not found.');
+175	            }
+176	            const cost = data.supplierCost ?? existing.supplierCost.toNumber();
+177	            const markup = data.markupPercent ?? existing.markupPercent.toNumber();
+178	            updateData['sellingPrice'] = cost + (cost * markup / 100);
+179	          }
+180	
+181	          return prisma.product.update({
+182	            where: { id },
+183	            data: updateData,
+184	          });
+185	        },
+186	      );
+187	    }),
+188	});
+189
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-04-03 13:01:37Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./apps/web/src/server/trpc/routers/user.router.ts`
+
+```text
+1	// User router — tenant-scoped user management (admin only)
+2	
+3	import { z } from 'zod';
+4	import { TRPCError } from '@trpc/server';
+5	import { createTRPCRouter, tenantProcedure } from '../trpc';
+6	import { requireRole } from '../middleware/rbac';
+7	import { UserRole } from '@inventorize/shared/enums';
+8	import { prisma } from '@inventorize/db';
+9	import { withTenantContext } from '@inventorize/db';
+10	import type { Prisma } from '@inventorize/db';
+11	import bcrypt from 'bcryptjs';
+12	
+13	export const userRouter = createTRPCRouter({
+14	  list: tenantProcedure
+15	    .use(requireRole(UserRole.ADMIN))
+16	    .input(
+17	      z.object({
+18	        page: z.number().int().min(1).default(1),
+19	        limit: z.number().int().min(1).max(200).default(50),
+20	        search: z.string().optional(),
+21	        isActive: z.boolean().optional(),
+22	      }).strict(),
+23	    )
+24	    .query(async ({ ctx, input }) => {
+25	      const tenantId = ctx.tenantId!;
+26	      const userId = ctx.userId!;
+27	      return withTenantContext(
+28	        { tenantId, userId },
+29	        async () => {
+30	          const where = {
+31	            tenantId,
+32	            ...(input.search !== undefined
+33	              ? {
+34	                  OR: [
+35	                    { name: { contains: input.search, mode: 'insensitive' as const } },
+36	                    { email: { contains: input.search, mode: 'insensitive' as const } },
+37	                  ],
+38	                }
+39	              : {}),
+40	            ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
+41	          };
+42	          const [items, total] = await Promise.all([
+43	            prisma.user.findMany({
+44	              where,
+45	              skip: (input.page - 1) * input.limit,
+46	              take: input.limit,
+47	              orderBy: { name: 'asc' },
+48	              select: {
+49	                id: true,
+50	                name: true,
+51	                email: true,
+52	                role: true,
+53	                isActive: true,
+54	                lastLoginAt: true,
+55	                createdAt: true,
+56	              },
+57	            }),
+58	            prisma.user.count({ where }),
+59	          ]);
+60	          return { items, total, page: input.page, limit: input.limit, totalPages: Math.ceil(total / input.limit) };
+61	        },
+62	      );
+63	    }),
+64	
+65	  create: tenantProcedure
+66	    .use(requireRole(UserRole.ADMIN))
+67	    .input(
+68	      z.object({
+69	        name: z.string().min(1).max(200),
+70	        email: z.string().email(),
+71	        password: z.string().min(8).max(128),
+72	        role: z.enum(['admin', 'warehouse_staff', 'purchasing_staff']),
+73	      }).strict(),
+74	    )
+75	    .mutation(async ({ ctx, input }) => {
+76	      const tenantId = ctx.tenantId!;
+77	      const userId = ctx.userId!;
+78	      return withTenantContext(
+79	        { tenantId, userId },
+80	        async () => {
+81	          // Check for duplicate email within tenant
+82	          const existing = await prisma.user.findFirst({
+83	            where: { email: input.email, tenantId },
+84	          });
+85	          if (existing !== null) {
+86	            throw new TRPCError({
+87	              code: 'CONFLICT',
+88	              message: 'A user with this email already exists.',
+89	            });
+90	          }
+91	
+92	          const hashedPassword = await bcrypt.hash(input.password, 12);
+93	          return prisma.user.create({
+94	            data: {
+95	              tenantId,
+96	              name: input.name,
+97	              email: input.email,
+98	              hashedPassword,
+99	              role: input.role,
+100	              isActive: true,
+101	            },
+102	            select: {
+103	              id: true,
+104	              name: true,
+105	              email: true,
+106	              role: true,
+107	              isActive: true,
+108	              createdAt: true,
+109	            },
+110	          });
+111	        },
+112	      );
+113	    }),
+114	
+115	  update: tenantProcedure
+116	    .use(requireRole(UserRole.ADMIN))
+117	    .input(
+118	      z.object({
+119	        id: z.string().cuid(),
+120	        name: z.string().min(1).max(200).optional(),
+121	        email: z.string().email().optional(),
+122	        role: z.enum(['admin', 'warehouse_staff', 'purchasing_staff']).optional(),
+123	        isActive: z.boolean().optional(),
+124	      }).strict(),
+125	    )
+126	    .mutation(async ({ ctx, input }) => {
+127	      const tenantId = ctx.tenantId!;
+128	      const userId = ctx.userId!;
+129	      return withTenantContext(
+130	        { tenantId, userId },
+131	        async () => {
+132	          // Verify user belongs to this tenant
+133	          const user = await prisma.user.findFirst({
+134	            where: { id: input.id, tenantId },
+135	          });
+136	          if (user === null) {
+137	            throw new TRPCError({ code: 'NOT_FOUND', message: 'Resource not found.' });
+138	          }
+139	
+140	          // Prevent self-deactivation
+141	          if (input.id === userId && input.isActive === false) {
+142	            throw new TRPCError({
+143	              code: 'BAD_REQUEST',
+144	              message: 'You cannot deactivate your own account.',
+145	            });
+146	          }
+147	
+148	          const { id, ...data } = input;
+149	          const updateData: Record<string, unknown> = {};
+150	          if (data.name !== undefined) updateData['name'] = data.name;
+151	          if (data.email !== undefined) updateData['email'] = data.email;
+152	          if (data.role !== undefined) updateData['role'] = data.role;
+153	          if (data.isActive !== undefined) updateData['isActive'] = data.isActive;
+154	          return prisma.user.update({
+155	            where: { id },
+156	            data: updateData as Prisma.UserUncheckedUpdateInput,
+157	            select: {
+158	              id: true,
+159	              name: true,
+160	              email: true,
+161	              role: true,
+162	              isActive: true,
+163	              createdAt: true,
+164	            },
+165	          });
+166	        },
+167	      );
+168	    }),
+169	
+170	  resetPassword: tenantProcedure
+171	    .use(requireRole(UserRole.ADMIN))
+172	    .input(
+173	      z.object({
+174	        id: z.string().cuid(),
+175	        newPassword: z.string().min(8).max(128),
+176	      }).strict(),
+177	    )
+178	    .mutation(async ({ ctx, input }) => {
+179	      const tenantId = ctx.tenantId!;
+180	      const userId = ctx.userId!;
+181	      return withTenantContext(
+182	        { tenantId, userId },
+183	        async () => {
+184	          const user = await prisma.user.findFirst({
+185	            where: { id: input.id, tenantId },
+186	          });
+187	          if (user === null) {
+188	            throw new TRPCError({ code: 'NOT_FOUND', message: 'Resource not found.' });
+189	          }
+190	
+191	          const hashedPassword = await bcrypt.hash(input.newPassword, 12);
+192	          await prisma.user.update({
+193	            where: { id: input.id },
+194	            data: { hashedPassword },
+195	          });
+196	          return { success: true };
+197	        },
+198	      );
+199	    }),
+200	});
+201
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-04-03 13:01:37Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./apps/web/src/server/trpc/routers/purchase-order.router.ts`
+
+```text
+1	// Purchase order router — tenant-scoped CRUD + status management
+2	
+3	import { z } from 'zod';
+4	import { createTRPCRouter, tenantProcedure } from '../trpc';
+5	import { requireRole } from '../middleware/rbac';
+6	import { UserRole } from '@inventorize/shared/enums';
+7	import { prisma } from '@inventorize/db';
+8	import { withTenantContext } from '@inventorize/db';
+9	
+10	export const purchaseOrderRouter = createTRPCRouter({
+11	  list: tenantProcedure
+12	    .use(requireRole(UserRole.ADMIN, UserRole.PURCHASING_STAFF))
+13	    .input(
+14	      z.object({
+15	        page: z.number().int().min(1).default(1),
+16	        limit: z.number().int().min(1).max(200).default(50),
+17	        status: z.enum(['draft', 'ordered', 'partially_received', 'received', 'cancelled']).optional(),
+18	      }).strict(),
+19	    )
+20	    .query(async ({ ctx, input }) => {
+21	      const tenantId = ctx.tenantId!;
+22	      const userId = ctx.userId!;
+23	      return withTenantContext(
+24	        { tenantId, userId },
+25	        async () => {
+26	          const where = {
+27	            tenantId,
+28	            ...(input.status !== undefined ? { status: input.status } : {}),
+29	          };
+30	          const [items, total] = await Promise.all([
+31	            prisma.purchaseOrder.findMany({
+32	              where,
+33	              skip: (input.page - 1) * input.limit,
+34	              take: input.limit,
+35	              orderBy: { createdAt: 'desc' },
+36	              include: { supplier: { select: { name: true } }, items: true },
+37	            }),
+38	            prisma.purchaseOrder.count({ where }),
+39	          ]);
+40	          return { items, total, page: input.page, limit: input.limit, totalPages: Math.ceil(total / input.limit) };
+41	        },
+42	      );
+43	    }),
+44	
+45	  byId: tenantProcedure
+46	    .use(requireRole(UserRole.ADMIN, UserRole.PURCHASING_STAFF))
+47	    .input(z.object({ id: z.string().cuid() }).strict())
+48	    .query(async ({ ctx, input }) => {
+49	      const tenantId = ctx.tenantId!;
+50	      const userId = ctx.userId!;
+51	      return withTenantContext(
+52	        { tenantId, userId },
+53	        async () => {
+54	          return prisma.purchaseOrder.findFirst({
+55	            where: { id: input.id, tenantId },
+56	            include: {
+57	              supplier: true,
+58	              items: { include: { product: { select: { name: true, productCode: true } } } },
+59	            },
+60	          });
+61	        },
+62	      );
+63	    }),
+64	
+65	  create: tenantProcedure
+66	    .use(requireRole(UserRole.ADMIN, UserRole.PURCHASING_STAFF))
+67	    .input(
+68	      z.object({
+69	        supplierId: z.string().cuid(),
+70	        orderDate: z.string().datetime(),
+71	        expectedDate: z.string().datetime().nullable().default(null),
+72	        notes: z.string().max(2000).nullable().default(null),
+73	        items: z.array(
+74	          z.object({
+75	            productId: z.string().cuid(),
+76	            orderedQty: z.number().int().min(1),
+77	            supplierCostSnapshot: z.number().min(0),
+78	          }).strict(),
+79	        ).min(1),
+80	      }).strict(),
+81	    )
+82	    .mutation(async ({ ctx, input }) => {
+83	      const tenantId = ctx.tenantId!;
+84	      const userId = ctx.userId!;
+85	      return withTenantContext(
+86	        { tenantId, userId },
+87	        async () => {
+88	          const { items, ...poData } = input;
+89	          return prisma.purchaseOrder.create({
+90	            data: {
+91	              ...poData,
+92	              tenantId,
+93	              poNumber: `PO-${Date.now()}`,
+94	              status: 'draft',
+95	              createdByUserId: userId,
+96	              items: { create: items.map((item) => ({ ...item, receivedQty: 0, tenantId })) },
+97	            },
+98	            include: { items: true },
+99	          });
+100	        },
+101	      );
+102	    }),
+103	
+104	  updateStatus: tenantProcedure
+105	    .use(requireRole(UserRole.ADMIN, UserRole.PURCHASING_STAFF))
+106	    .input(
+107	      z.object({
+108	        id: z.string().cuid(),
+109	        status: z.enum(['ordered', 'partially_received', 'received', 'cancelled']),
+110	      }).strict(),
+111	    )
+112	    .mutation(async ({ ctx, input }) => {
+113	      const tenantId = ctx.tenantId!;
+114	      const userId = ctx.userId!;
+115	      return withTenantContext(
+116	        { tenantId, userId },
+117	        async () => {
+118	          return prisma.purchaseOrder.update({
+119	            where: { id: input.id },
+120	            data: { status: input.status },
+121	          });
+122	        },
+123	      );
+124	    }),
+125	});
+126
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-04-03 13:01:50Z)**_
+
+Here's the Batch 3 proposal:
+
+---
+
+**Batch 3 Proposal** — completing core CRUD forms and product management
+
+**Built so far:**
+- Batch 1: barcode scanning, CSV export, dashboard charts, low stock alerts
+- Batch 2: supplier create/edit, stock adjustment form, audit log filtering
+
+**Proposed next batch (3 features):**
+
+1. **Product create/edit form + detail enhancement** — Products page gets a "+ New Product" form (productCode, barcodeValue, name, category, unit, supplierCost, markupPercent, lowStockThreshold, serialTrackingEnabled). Product detail page gets an Edit button. The router's `create` and `update` mutations are already wired.
+
+2. **User management CRUD** — Users page gets a "+ New User" form (name, email, password, role dropdown), edit/deactivate buttons per row, and a password reset action. All mutations exist in `user.router.ts`.
+
+3. **Purchase order create form + detail enhancement** — PO list page gets a "+ New PO" form with supplier dropdown, product items with quantity and cost, and notes. PO detail page enhanced to show items table, supplier name, status badge, and status transition buttons (draft->ordered->received/cancelled). All mutations exist in `purchase-order.router.ts`.
+
+These three complete the remaining CRUD gaps across the app. After this, only polish features remain (product history page enhancement, categories management, settings, notifications).
+
+Want me to proceed?
+
+---
+
+_**User (2026-04-03 13:15:41Z)**_
+
+Update governance docs for all changes just made
+
+---
+
+_**Agent (claude-opus-4-6 2026-04-03 13:15:47Z)**_
+
+_**Agent (claude-opus-4-6 2026-04-03 13:15:48Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./docs/CHANGELOG_AI.md`
+</details></tool-use>

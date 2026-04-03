@@ -135,6 +135,26 @@
 - Errors encountered:  (1) pnpm build failed — .js extension imports invalid for Next.js webpack bundler; (2) pnpm typecheck failed — duplicate @types/react v18 vs v19 from lucide-react peer dep; (3) pnpm build failed — useSearchParams() requires Suspense boundary in Next.js 15
 - Errors resolved:     (1) Removed all .js extensions from imports across apps/web and packages/; (2) Added pnpm overrides to force @types/react@^19.2.14; (3) Wrapped login page in Suspense with LoginForm inner component
 
+## 2026-04-03 — Phase 8 Batch 1: Dashboard + Barcode + CSV + Low Stock
+- Agent:               CLAUDE_CODE
+- Why:                 Implement first batch of Phase 8 iterative features — dashboard visualizations, barcode scanning, CSV export, low stock alerts
+- Files added:         apps/web/src/lib/csv-export.ts, apps/web/src/components/barcode-scanner.tsx
+- Files modified:      apps/web/src/app/[tenantSlug]/dashboard/page.tsx (recharts KPI charts — bar, line, pie, area), apps/web/src/app/[tenantSlug]/stock-in/page.tsx (BarcodeScanner + create form), apps/web/src/app/[tenantSlug]/stock-out/page.tsx (BarcodeScanner + create form), apps/web/src/app/[tenantSlug]/reports/page.tsx (CSV export for movements + low stock), apps/web/package.json (added recharts, html5-qrcode)
+- Files deleted:       none
+- Schema/migrations:   none
+- Errors encountered:  none
+- Errors resolved:     none
+
+## 2026-04-03 — Phase 8 Batch 2: Supplier CRUD + Adjustment Form + Audit Filtering
+- Agent:               CLAUDE_CODE
+- Why:                 Implement second batch — supplier create/edit/deactivate forms, stock adjustment form with barcode scanner and reason enum, audit log filtering by entity type and date range
+- Files added:         none
+- Files modified:      apps/web/src/app/[tenantSlug]/suppliers/page.tsx (added create/edit form with all fields, inline edit via startEdit(), activate/deactivate toggle per row), apps/web/src/app/[tenantSlug]/adjustments/page.tsx (added create form with reason dropdown, BarcodeScanner product search, pending items table with delta input and result preview, negative stock warning), apps/web/src/app/[tenantSlug]/audit-logs/page.tsx (added filter bar: entity type dropdown, start/end date pickers, clear button, entry count with filtered indicator, pagination controls, color-coded action badges)
+- Files deleted:       none
+- Schema/migrations:   none
+- Errors encountered:  none
+- Errors resolved:     none
+
 ## 2026-04-03 — Phase 6: Docker Startup + Visual QA
 - Agent:               CLAUDE_CODE
 - Why:                 Start all Docker backing services, run Prisma migration + seed, start app, verify Visual QA
