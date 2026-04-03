@@ -65,6 +65,16 @@
 - Errors encountered:  pnpm 10 blocked Prisma postinstall via build script approval; approve-builds interactive mode added to ignoredBuiltDependencies instead of allowed
 - Errors resolved:     Removed ignoredBuiltDependencies from package.json; onlyBuiltDependencies in package.json + .npmrc resolves approval; ran npx prisma generate directly
 
+## 2026-04-03 — Phase 4 Part 4: packages/ui + packages/jobs + packages/storage
+- Agent:               CLAUDE_CODE
+- Why:                 Scaffold UI component library, job queue system, and file storage package
+- Files added:         packages/ui/ (package.json, tsconfig.json, 16 shadcn/ui components, cn() utility, globals.css), packages/jobs/ (package.json, tsconfig.json, connection.ts, queue definitions, worker factories, scheduler, tenant-prefixed cache helpers), packages/storage/ (package.json, tsconfig.json, S3 client, MIME validation, upload/download/delete operations)
+- Files modified:      pnpm-lock.yaml
+- Files deleted:       none
+- Schema/migrations:   none
+- Errors encountered:  exactOptionalPropertyTypes conflict with DropdownMenu checked prop; HTMLTableCellElement missing (no DOM lib); mixed ?? and || operators
+- Errors resolved:     Added default value for checked prop; added DOM lib to ui tsconfig; parenthesized mixed operators
+
 ## 2026-04-03 — Phase 4 Part 1: Root Config Files
 - Agent:               CLAUDE_CODE
 - Why:                 Generate monorepo root config files — foundation for all subsequent Parts
