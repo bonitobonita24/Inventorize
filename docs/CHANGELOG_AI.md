@@ -3,6 +3,17 @@
 # Include agent attribution in every entry.
 # ---
 
+## 2026-04-04 — Phase 8 Batch 11: Super_admin tenant impersonation (read-only support mode)
+- Agent:               CLAUDE_CODE
+- Why:                 Add read-only impersonation so super_admin can view any tenant's data for support without modifying anything
+- Files added:         apps/web/src/components/impersonation-banner.tsx
+- Files modified:      auth/index.ts (JWT impersonation fields + trigger=update handler), context.ts (isImpersonating in TRPCContext), trpc.ts (tenantMutationProcedure), middleware/tenant.ts (blockIfImpersonating simplified), platform.router.ts (startImpersonation + stopImpersonation), middleware.ts (impersonating super_admin bypass), layout.tsx (ImpersonationBanner), trpc-provider.tsx (SessionProvider), tenants/page.tsx (impersonate button), + all 8 tenant routers swapped mutations to tenantMutationProcedure
+- Files deleted:       none
+- Schema/migrations:   none (impersonation state lives in JWT session, not DB)
+- Errors encountered:  none
+- Errors resolved:     none
+- Notes:               Barcode product lookup and stock-out slip numbering (items 2+3) confirmed already implemented — barcodeValue in product.list search, atomic SO-XXXXX in stock-out create
+
 ## 2026-04-04 — Phase 8 Batch 10: Export audit logging, per-tenant metrics, dashboard stock counts
 - Agent:               CLAUDE_CODE
 - Why:                 Close remaining PRODUCT.md gaps: export audit trail, platform metrics user breakdown, dashboard period counts

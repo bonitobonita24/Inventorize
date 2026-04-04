@@ -1,7 +1,7 @@
 // Supplier router — tenant-scoped CRUD
 
 import { z } from 'zod';
-import { createTRPCRouter, tenantProcedure } from '../trpc';
+import { createTRPCRouter, tenantProcedure, tenantMutationProcedure } from '../trpc';
 import { requireRole } from '../middleware/rbac';
 import { UserRole } from '@inventorize/shared/enums';
 import { prisma } from '@inventorize/db';
@@ -49,7 +49,7 @@ export const supplierRouter = createTRPCRouter({
       );
     }),
 
-  create: tenantProcedure
+  create: tenantMutationProcedure
     .use(requireRole(UserRole.ADMIN, UserRole.PURCHASING_STAFF))
     .input(
       z.object({
@@ -74,7 +74,7 @@ export const supplierRouter = createTRPCRouter({
       );
     }),
 
-  update: tenantProcedure
+  update: tenantMutationProcedure
     .use(requireRole(UserRole.ADMIN, UserRole.PURCHASING_STAFF))
     .input(
       z.object({

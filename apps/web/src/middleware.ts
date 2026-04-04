@@ -37,6 +37,7 @@ export async function middleware(req: NextRequest) {
 
   const role = token.role as string | undefined;
   const tenantSlug = token.tenantSlug as string | null | undefined;
+  const isImpersonating = token.isImpersonating === true;
 
   // Super admin platform routes
   if (pathname.startsWith('/platform')) {
@@ -50,6 +51,11 @@ export async function middleware(req: NextRequest) {
   const slugMatch = pathname.match(/^\/([^/]+)/);
   if (slugMatch !== null) {
     const urlSlug = slugMatch[1];
+
+    // Super admin impersonating: allow access to the impersonated tenant's routes
+    if (role === 'SUPER_ADMIN' && isImpersonating && tenantSlug === urlSlug) {
+      return NextResponse.next();
+    }
 
     // Cross-check: session tenantSlug must match URL slug
     // Prevents tenant-switching attack (user types /other-tenant/... in URL bar)

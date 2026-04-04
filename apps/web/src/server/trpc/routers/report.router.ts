@@ -1,7 +1,7 @@
 // Report router — tenant-scoped reporting queries
 
 import { z } from 'zod';
-import { createTRPCRouter, tenantProcedure } from '../trpc';
+import { createTRPCRouter, tenantProcedure, tenantMutationProcedure } from '../trpc';
 import { requireRole } from '../middleware/rbac';
 import { UserRole } from '@inventorize/shared/enums';
 import { prisma } from '@inventorize/db';
@@ -143,7 +143,7 @@ export const reportRouter = createTRPCRouter({
     }),
 
   // Log a CSV export event to the immutable audit trail
-  logExport: tenantProcedure
+  logExport: tenantMutationProcedure
     .input(
       z.object({
         reportType: z.string().min(1).max(100),

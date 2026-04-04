@@ -13,10 +13,14 @@ export interface TRPCContext {
       role: UserRole;
       tenantId: string | null;
       tenantSlug: string | null;
+      isImpersonating?: boolean | undefined;
+      originalTenantId?: string | null | undefined;
+      originalTenantSlug?: string | null | undefined;
     };
   } | null;
   userId: string | null;
   tenantId: string | null;
+  isImpersonating: boolean;
   roles: UserRole[];
   headers: Headers;
 }
@@ -33,6 +37,9 @@ export async function createTRPCContext(
     role: UserRole;
     tenantId: string | null;
     tenantSlug: string | null;
+    isImpersonating?: boolean | undefined;
+    originalTenantId?: string | null | undefined;
+    originalTenantSlug?: string | null | undefined;
   } | undefined;
 
   return {
@@ -41,6 +48,7 @@ export async function createTRPCContext(
       : null,
     userId: user?.id ?? null,
     tenantId: user?.tenantId ?? null,
+    isImpersonating: user?.isImpersonating === true,
     roles: user?.role !== undefined ? [user.role] : [],
     headers: opts.req.headers,
   };

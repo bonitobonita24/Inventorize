@@ -19,10 +19,9 @@ export const requireTenant = t.middleware(({ ctx, next }) => {
   });
 });
 
-// Impersonation guard — blocks mutations when isImpersonating is true
+// Impersonation guard — blocks mutations when super_admin is viewing a tenant in read-only mode
 export const blockIfImpersonating = t.middleware(({ ctx, next }) => {
-  const session = ctx.session;
-  if (session !== null && (session.user as Record<string, unknown>)['isImpersonating'] === true) {
+  if (ctx.isImpersonating === true) {
     throw new TRPCError({
       code: 'FORBIDDEN',
       message: 'Mutations are blocked during impersonation.',

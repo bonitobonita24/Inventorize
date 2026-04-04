@@ -3,6 +3,8 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
 import { trpc } from '@/lib/trpc';
 
 function toSlug(name: string): string {
@@ -34,6 +36,11 @@ export default function PlatformTenantsPage() {
 
   // --- Confirm dialog state ---
   const [confirmAction, setConfirmAction] = useState<{ tenantId: string; tenantName: string; status: 'active' | 'suspended' } | null>(null);
+
+  // --- Impersonation ---
+  const { update: updateSession } = useSession();
+  const router = useRouter();
+  const startImpersonationMutation = trpc.platform.startImpersonation.useMutation();
 
   const queryInput = {
     page,
@@ -106,6 +113,18 @@ export default function PlatformTenantsPage() {
       email: adminEmail.trim(),
       password: adminPassword,
     });
+  };
+
+  const handleImpersonate = async (tenantId: string) => {
+    const result = await startImpersonationMutation.mutateAsync({ tenantId });
+    await updateSession({
+      isImpersonating: true,
+      tenantId: result.tenantId,
+      tenantSlug: result.tenantSlug,
+      originalTenantId: result.originalTenantId,
+      originalTenantSlug: result.originalTenantSlug,
+    });
+    router.push(`/${result.tenantSlug}/dashboard`);
   };
 
   const slugAvailable = slugCheck.data?.available === true;
@@ -336,23 +355,33 @@ export default function PlatformTenantsPage() {
                     {new Date(tenant.createdAt).toLocaleDateString()}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    {tenant.status === 'active' ? (
+                    <div className="flex items-center justify-end gap-3">
                       <button
                         type="button"
-                        onClick={() => { setConfirmAction({ tenantId: tenant.id, tenantName: tenant.name, status: 'suspended' }); }}
-                        className="text-xs text-red-600 hover:underline"
+                        onClick={() => { void handleImpersonate(tenant.id); }}
+                        disabled={startImpersonationMutation.isPending}
+                        className="text-xs text-blue-600 hover:underline"
                       >
-                        Suspend
+                        View as tenant
                       </button>
-                    ) : tenant.status === 'suspended' ? (
-                      <button
-                        type="button"
-                        onClick={() => { setConfirmAction({ tenantId: tenant.id, tenantName: tenant.name, status: 'active' }); }}
-                        className="text-xs text-green-600 hover:underline"
-                      >
-                        Reactivate
-                      </button>
-                    ) : null}
+                      {tenant.status === 'active' ? (
+                        <button
+                          type="button"
+                          onClick={() => { setConfirmAction({ tenantId: tenant.id, tenantName: tenant.name, status: 'suspended' }); }}
+                          className="text-xs text-red-600 hover:underline"
+                        >
+                          Suspend
+                        </button>
+                      ) : tenant.status === 'suspended' ? (
+                        <button
+                          type="button"
+                          onClick={() => { setConfirmAction({ tenantId: tenant.id, tenantName: tenant.name, status: 'active' }); }}
+                          className="text-xs text-green-600 hover:underline"
+                        >
+                          Reactivate
+                        </button>
+                      ) : null}
+                    </div>
                   </td>
                 </tr>
               ))}

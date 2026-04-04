@@ -2,7 +2,7 @@
 
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
-import { createTRPCRouter, tenantProcedure } from '../trpc';
+import { createTRPCRouter, tenantProcedure, tenantMutationProcedure } from '../trpc';
 import { requireRole } from '../middleware/rbac';
 import { UserRole } from '@inventorize/shared/enums';
 import { prisma } from '@inventorize/db';
@@ -67,7 +67,7 @@ export const stockOutRouter = createTRPCRouter({
       );
     }),
 
-  create: tenantProcedure
+  create: tenantMutationProcedure
     .use(requireRole(UserRole.ADMIN, UserRole.WAREHOUSE_STAFF))
     .input(
       z.object({

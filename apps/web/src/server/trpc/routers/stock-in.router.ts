@@ -2,7 +2,7 @@
 
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
-import { createTRPCRouter, tenantProcedure } from '../trpc';
+import { createTRPCRouter, tenantProcedure, tenantMutationProcedure } from '../trpc';
 import { requireRole } from '../middleware/rbac';
 import { UserRole } from '@inventorize/shared/enums';
 import { prisma } from '@inventorize/db';
@@ -41,7 +41,7 @@ export const stockInRouter = createTRPCRouter({
       );
     }),
 
-  create: tenantProcedure
+  create: tenantMutationProcedure
     .use(requireRole(UserRole.ADMIN, UserRole.WAREHOUSE_STAFF, UserRole.PURCHASING_STAFF))
     .input(
       z.object({
@@ -216,7 +216,7 @@ export const stockInRouter = createTRPCRouter({
       });
     }),
 
-  deleteAttachment: tenantProcedure
+  deleteAttachment: tenantMutationProcedure
     .use(requireRole(UserRole.ADMIN, UserRole.WAREHOUSE_STAFF))
     .input(z.object({ id: z.string().cuid() }).strict())
     .mutation(async ({ ctx, input }) => {

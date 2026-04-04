@@ -77,12 +77,26 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   },
   trustHost: true,
   callbacks: {
-    jwt({ token, user }) {
+    jwt({ token, user, trigger, session: updatedSession }) {
       if (user !== undefined && user !== null) {
         token.userId = user.id;
         token.role = (user as unknown as Record<string, unknown>)['role'] as string;
         token.tenantId = (user as unknown as Record<string, unknown>)['tenantId'] as string | null;
         token.tenantSlug = (user as unknown as Record<string, unknown>)['tenantSlug'] as string | null;
+        token.isImpersonating = false;
+        token.originalTenantId = null;
+        token.originalTenantSlug = null;
+      }
+      // Allow session update via update() call (used by impersonation start/stop)
+      if (trigger === 'update' && updatedSession !== undefined && updatedSession !== null) {
+        const s = updatedSession as Record<string, unknown>;
+        if (s['isImpersonating'] !== undefined) {
+          token.isImpersonating = s['isImpersonating'] as boolean;
+          token.tenantId = s['tenantId'] as string | null;
+          token.tenantSlug = s['tenantSlug'] as string | null;
+          token.originalTenantId = s['originalTenantId'] as string | null;
+          token.originalTenantSlug = s['originalTenantSlug'] as string | null;
+        }
       }
       return token;
     },
@@ -92,6 +106,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         (session.user as unknown as Record<string, unknown>)['role'] = token.role;
         (session.user as unknown as Record<string, unknown>)['tenantId'] = token.tenantId;
         (session.user as unknown as Record<string, unknown>)['tenantSlug'] = token.tenantSlug;
+        (session.user as unknown as Record<string, unknown>)['isImpersonating'] = token.isImpersonating ?? false;
+        (session.user as unknown as Record<string, unknown>)['originalTenantId'] = token.originalTenantId ?? null;
+        (session.user as unknown as Record<string, unknown>)['originalTenantSlug'] = token.originalTenantSlug ?? null;
       }
       return session;
     },

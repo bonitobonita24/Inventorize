@@ -292,6 +292,58 @@ export const platformRouter = createTRPCRouter({
       };
     }),
 
+  // Start impersonation — super_admin enters a tenant in read-only mode
+  startImpersonation: superAdminProcedure
+    .input(z.object({ tenantId: z.string().cuid() }).strict())
+    .mutation(async ({ ctx, input }) => {
+      const tenant = await platformPrisma.tenant.findUnique({
+        where: { id: input.tenantId },
+        select: { id: true, name: true, slug: true, status: true },
+      });
+      if (tenant === null) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Resource not found.' });
+      }
+
+      await platformPrisma.auditLog.create({
+        data: {
+          tenantId: tenant.id,
+          actorUserId: ctx.userId!,
+          actionType: 'PLATFORM:START_IMPERSONATION',
+          entityType: 'Tenant',
+          entityId: tenant.id,
+          afterStateJson: { tenantName: tenant.name, tenantSlug: tenant.slug },
+        },
+      });
+
+      return {
+        tenantId: tenant.id,
+        tenantSlug: tenant.slug,
+        tenantName: tenant.name,
+        originalTenantId: ctx.tenantId,
+        originalTenantSlug: ctx.session?.user.tenantSlug ?? null,
+      };
+    }),
+
+  // Stop impersonation — return to super_admin's own context
+  stopImpersonation: superAdminProcedure
+    .mutation(async ({ ctx }) => {
+      // Log exit from impersonation
+      const impersonatedTenantId = ctx.tenantId;
+      if (impersonatedTenantId !== null) {
+        await platformPrisma.auditLog.create({
+          data: {
+            tenantId: impersonatedTenantId,
+            actorUserId: ctx.userId!,
+            actionType: 'PLATFORM:STOP_IMPERSONATION',
+            entityType: 'Tenant',
+            entityId: impersonatedTenantId,
+          },
+        });
+      }
+
+      return { success: true };
+    }),
+
   platformAuditLogs: superAdminProcedure
     .input(
       z.object({

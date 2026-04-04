@@ -19,7 +19,7 @@
 - [x] Phase 5: Validation (all 9 commands pass)
 - [x] Phase 6: Docker Startup
 - [x] Phase 7: Feature Updates (via Phase 8 batches)
-- [ ] Phase 8: Iterative Buildout (Batches 1–10 of N complete)
+- [ ] Phase 8: Iterative Buildout (Batches 1–11 of N complete)
 
 ---
 
@@ -77,18 +77,18 @@
 - [x] apps/web/.dockerignore
 - [x] apps/web/postcss.config.js + tailwind.config.ts
 - [x] apps/web/src/env.ts (Zod-validated env vars at startup)
-- [x] apps/web/src/middleware.ts (tenant resolution from URL path, auth guard, session cross-check)
-- [x] apps/web/src/server/auth/index.ts (Auth.js v5 Credentials provider, bcrypt, JWT + session callbacks) ✦ Batch 7: LOGIN AuditLog event via platformPrisma.$transaction ✦ Batch 8: block login for suspended tenant users
+- [x] apps/web/src/middleware.ts (tenant resolution from URL path, auth guard, session cross-check) ✦ Batch 11: allow impersonating super_admin to access tenant routes
+- [x] apps/web/src/server/auth/index.ts (Auth.js v5 Credentials provider, bcrypt, JWT + session callbacks) ✦ Batch 7: LOGIN AuditLog event via platformPrisma.$transaction ✦ Batch 8: block login for suspended tenant users ✦ Batch 11: impersonation JWT fields + trigger='update' handler
 - [x] apps/web/src/instrumentation.ts ✦ Batch 7: Next.js register() hook — starts BullMQ workers on nodejs runtime init
 - [x] apps/web/src/server/lib/email.ts ✦ Batch 7: nodemailer SMTP sender (MailHog dev / SMTP prod)
 - [x] apps/web/src/server/workers/email-processor.ts ✦ Batch 7: low_stock_report HTML email + welcome email
 - [x] apps/web/src/server/workers/low-stock-processor.ts ✦ Batch 7: all-tenants low-stock check, LowStockNotificationLog dedup, email job enqueue
 - [x] apps/web/src/server/workers/startup.ts ✦ Batch 7: createLowStockCheckWorker + createEmailNotificationsWorker + registerScheduledJobs
-- [x] apps/web/src/server/trpc/context.ts (tRPC context with session, userId, tenantId, roles)
-- [x] apps/web/src/server/trpc/trpc.ts (base procedures, rate limiting wired in)
+- [x] apps/web/src/server/trpc/context.ts (tRPC context with session, userId, tenantId, roles, isImpersonating)
+- [x] apps/web/src/server/trpc/trpc.ts (base procedures, rate limiting wired in) ✦ Batch 11: tenantMutationProcedure (chains blockIfImpersonating)
 - [x] apps/web/src/server/trpc/router.ts (root router aggregating all sub-routers)
 - [x] apps/web/src/server/trpc/middleware/rbac.ts (L3 RBAC role guard)
-- [x] apps/web/src/server/trpc/middleware/tenant.ts (L1 tenant scope enforcement)
+- [x] apps/web/src/server/trpc/middleware/tenant.ts (L1 tenant scope enforcement + blockIfImpersonating middleware)
 - [x] apps/web/src/server/trpc/routers/ — 10 routers:
   - [x] product.router.ts (CRUD, list with cursor pagination, stock history) ✦ Batch 5: serialsByProductId query (paginated, status filter) ✦ Batch 8: duplicate productCode + barcodeValue enforcement (create + update)
   - [x] supplier.router.ts (CRUD, list)
@@ -99,9 +99,9 @@
   - [x] user.router.ts (CRUD, role assignment, impersonation) ✦ Batch 8: welcome email enqueue via BullMQ on user creation
   - [x] audit-log.router.ts (list with filters)
   - [x] report.router.ts (dashboard KPIs, low stock, movement history, valuation) ✦ Batch 6: inventorySnapshot + inventorySummary added ✦ Batch 10: logExport mutation (audit trail on CSV export) + movementCounts query (period-based stock-in/out counts)
-  - [x] platform.router.ts (superadmin: tenant CRUD, metrics, audit — separate Prisma instance) ✦ Batch 8: removed invalid isActive from tenant create ✦ Batch 9: atomic $transaction on createTenant, createTenantAdmin, updateTenantStatus (audit log rolls back on failure) ✦ Batch 10: platformMetrics returns per-tenant active user breakdown
+  - [x] platform.router.ts (superadmin: tenant CRUD, metrics, audit — separate Prisma instance) ✦ Batch 8: removed invalid isActive from tenant create ✦ Batch 9: atomic $transaction on createTenant, createTenantAdmin, updateTenantStatus (audit log rolls back on failure) ✦ Batch 10: platformMetrics returns per-tenant active user breakdown ✦ Batch 11: startImpersonation + stopImpersonation mutations with PLATFORM audit logs
 - [x] apps/web/src/app/ — Pages:
-  - [x] layout.tsx (root layout with TRPCProvider)
+  - [x] layout.tsx (root layout with TRPCProvider + ImpersonationBanner)
   - [x] login/page.tsx
   - [x] page.tsx (redirect to login)
   - [x] api/health/route.ts (GET /api/health → 200)
@@ -118,10 +118,11 @@
   - [x] [tenantSlug]/reports/page.tsx ✦ Batch 1: CSV export (movements + low stock) ✦ Batch 6: full rewrite — 5 tabs (stock movements, low stock, inventory snapshot, product history, audit trail); filters; CSV export per tab; admin-only audit trail tab ✦ Batch 10: logExport mutation called before every CSV download
   - [x] apps/web/src/app/api/upload/route.ts ✦ Batch 6: non-tRPC multipart upload handler (manual auth + tenant guard + MinIO) — entityType: po-attachment | delivery-receipt
   - [x] [tenantSlug]/users/page.tsx ✦ Batch 3: create form, inline edit, disable/enable toggle, role assignment, search, pagination
-  - [x] platform/layout.tsx + tenants/page.tsx + audit-logs/page.tsx + metrics/page.tsx ✦ Batch 8: tenants/page.tsx full rewrite — create tenant + first admin onboarding, suspend/reactivate with dialog, search/filter, pagination ✦ Batch 10: metrics/page.tsx per-tenant active user breakdown table
+  - [x] platform/layout.tsx + tenants/page.tsx + audit-logs/page.tsx + metrics/page.tsx ✦ Batch 8: tenants/page.tsx full rewrite — create tenant + first admin onboarding, suspend/reactivate with dialog, search/filter, pagination ✦ Batch 10: metrics/page.tsx per-tenant active user breakdown table ✦ Batch 11: tenants/page.tsx "View as tenant" impersonate button per row
 - [x] apps/web/src/server/lib/rate-limit.ts (LRU-based, 4 tiers: public/auth/api/upload)
 - [x] apps/web/src/server/lib/sanitize.ts (DOMPurify — sanitize + sanitizePlainText)
-- [x] apps/web/src/lib/trpc.ts + trpc-provider.tsx (client-side tRPC hooks)
+- [x] apps/web/src/lib/trpc.ts + trpc-provider.tsx (client-side tRPC hooks + SessionProvider for useSession().update())
+- [x] apps/web/src/components/impersonation-banner.tsx ✦ Batch 11: amber sticky banner during impersonation with exit button
 - [x] apps/web/src/lib/csv-export.ts ✦ Batch 1: downloadCsv() utility for client-side CSV generation
 - [x] apps/web/src/components/barcode-scanner.tsx ✦ Batch 1: html5-qrcode camera scanner + manual input
 

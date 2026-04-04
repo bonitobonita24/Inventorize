@@ -4,6 +4,7 @@ import { initTRPC, TRPCError } from '@trpc/server';
 import superjson from 'superjson';
 import type { TRPCContext } from './context';
 import { rateLimiters } from '@/server/lib/rate-limit';
+import { blockIfImpersonating } from './middleware/tenant';
 
 const t = initTRPC.context<TRPCContext>().create({
   transformer: superjson,
@@ -68,3 +69,6 @@ const enforceTenant = t.middleware(({ ctx, next }) => {
 });
 
 export const tenantProcedure = protectedProcedure.use(enforceTenant);
+
+// Tenant procedure that blocks mutations during impersonation (read-only support mode)
+export const tenantMutationProcedure = tenantProcedure.use(blockIfImpersonating);
