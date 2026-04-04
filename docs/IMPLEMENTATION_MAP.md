@@ -5,7 +5,7 @@
 ## Project Info
 - App Name:     Inventorize
 - App Slug:     inventorize
-- Phase:        Phase 8 — Iterative Buildout (Batches 1–6 complete)
+- Phase:        Phase 8 — Iterative Buildout (Batches 1–7 complete)
 - Last Updated: 2026-04-04
 
 ---
@@ -19,7 +19,7 @@
 - [x] Phase 5: Validation (all 9 commands pass)
 - [x] Phase 6: Docker Startup
 - [x] Phase 7: Feature Updates (via Phase 8 batches)
-- [ ] Phase 8: Iterative Buildout (Batches 1–6 of N complete)
+- [ ] Phase 8: Iterative Buildout (Batches 1–7 of N complete)
 
 ---
 
@@ -78,7 +78,12 @@
 - [x] apps/web/postcss.config.js + tailwind.config.ts
 - [x] apps/web/src/env.ts (Zod-validated env vars at startup)
 - [x] apps/web/src/middleware.ts (tenant resolution from URL path, auth guard, session cross-check)
-- [x] apps/web/src/server/auth/index.ts (Auth.js v5 Credentials provider, bcrypt, JWT + session callbacks)
+- [x] apps/web/src/server/auth/index.ts (Auth.js v5 Credentials provider, bcrypt, JWT + session callbacks) ✦ Batch 7: LOGIN AuditLog event via platformPrisma.$transaction
+- [x] apps/web/src/instrumentation.ts ✦ Batch 7: Next.js register() hook — starts BullMQ workers on nodejs runtime init
+- [x] apps/web/src/server/lib/email.ts ✦ Batch 7: nodemailer SMTP sender (MailHog dev / SMTP prod)
+- [x] apps/web/src/server/workers/email-processor.ts ✦ Batch 7: low_stock_report HTML email + welcome email
+- [x] apps/web/src/server/workers/low-stock-processor.ts ✦ Batch 7: all-tenants low-stock check, LowStockNotificationLog dedup, email job enqueue
+- [x] apps/web/src/server/workers/startup.ts ✦ Batch 7: createLowStockCheckWorker + createEmailNotificationsWorker + registerScheduledJobs
 - [x] apps/web/src/server/trpc/context.ts (tRPC context with session, userId, tenantId, roles)
 - [x] apps/web/src/server/trpc/trpc.ts (base procedures, rate limiting wired in)
 - [x] apps/web/src/server/trpc/router.ts (root router aggregating all sub-routers)
@@ -102,8 +107,8 @@
   - [x] api/health/route.ts (GET /api/health → 200)
   - [x] api/trpc/[trpc]/route.ts (tRPC API handler)
   - [x] [tenantSlug]/layout.tsx (tenant layout with sidebar nav)
-  - [x] [tenantSlug]/dashboard/page.tsx ✦ Batch 1: recharts KPI charts (bar, line, pie, area)
-  - [x] [tenantSlug]/products/page.tsx + [id]/page.tsx + [id]/history/page.tsx ✦ Batch 3: create/edit form (admin-only), real-time price preview, serial tracking toggle, Decimal conversion, deactivate/activate ✦ Batch 5: [id]/page.tsx has Serials tab (serialsByProductId, status filter, pagination, colored badges)
+  - [x] [tenantSlug]/dashboard/page.tsx ✦ Batch 1: recharts KPI charts (bar, line, pie, area) ✦ Batch 7: low-stock banner: item count, "need attention" headline, "View full report" link, "and X more" overflow
+  - [x] [tenantSlug]/products/page.tsx + [id]/page.tsx + [id]/history/page.tsx ✦ Batch 3: create/edit form (admin-only), real-time price preview, serial tracking toggle, Decimal conversion, deactivate/activate ✦ Batch 5: [id]/page.tsx has Serials tab (serialsByProductId, status filter, pagination, colored badges) ✦ Batch 7: [id]/history/page.tsx — movementType select, startDate/endDate date pickers, clear button, pagination, Notes column
   - [x] [tenantSlug]/suppliers/page.tsx ✦ Batch 2: create/edit form, activate/deactivate toggle
   - [x] [tenantSlug]/purchase-orders/page.tsx + [id]/page.tsx ✦ Batch 3: create form with dynamic line items, supplier dropdown, auto-fill cost, order total, supplier name in list ✦ Batch 4: [id]/page.tsx shows linked Receipts section ✦ Batch 6: file attachment upload on create; download button on detail
   - [x] [tenantSlug]/stock-in/page.tsx ✦ Batch 1: BarcodeScanner + create form ✦ Batch 4: PO dropdown selector, auto-populate remaining items ✦ Batch 5: serial entry panel ✦ Batch 6: delivery receipt upload; Receipt column with presigned download in list

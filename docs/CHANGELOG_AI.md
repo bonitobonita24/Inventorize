@@ -3,6 +3,23 @@
 # Include agent attribution in every entry.
 # ---
 
+## 2026-04-04 — Phase 8 Batch 7 — Dashboard Banner, History Filters, Login Audit, Low-Stock Notifications
+- Agent:               CLAUDE_CODE
+- Why:                 Batch 7 — enhanced dashboard alert banner, product history date/type filters, login AuditLog events, BullMQ low-stock check + email notification workers
+- Files added:         apps/web/src/instrumentation.ts (Next.js register() hook — starts workers on nodejs runtime init)
+                       apps/web/src/server/lib/email.ts (nodemailer transporter singleton; sendEmail helper; MailHog dev / SMTP prod)
+                       apps/web/src/server/workers/email-processor.ts (processEmailNotification — low_stock_report HTML+text template, welcome type)
+                       apps/web/src/server/workers/low-stock-processor.ts (processLowStockCheck — all-tenants iteration, JS filter, LowStockNotificationLog dedup, email enqueue)
+                       apps/web/src/server/workers/startup.ts (startWorkers — creates workers + registers scheduled jobs, idempotent started guard)
+- Files modified:      apps/web/src/app/[tenantSlug]/dashboard/page.tsx (banner: item count, "need attention" headline, "View full report" link, "and X more" overflow, threshold label)
+                       apps/web/src/app/[tenantSlug]/products/[id]/history/page.tsx (movementType select, startDate/endDate date inputs, clear filters button, pagination, Notes column, human-readable type labels)
+                       apps/web/src/server/auth/index.ts (platformPrisma.$transaction: lastLoginAt update + AuditLog LOGIN event)
+                       apps/web/package.json (added nodemailer@^7.0.7, @types/nodemailer, bullmq direct dep for Job<T> types)
+- Files deleted:       none
+- Schema/migrations:   none (LowStockNotificationLog already in schema from batch5)
+- Errors encountered:  bullmq not in apps/web deps (Job<T> type not resolvable); lowStock[0] possibly undefined (noUncheckedIndexedAccess)
+- Errors resolved:     Added bullmq as direct dep of apps/web; used non-null assertion lowStock[0]! with comment (array provably non-empty at that point)
+
 ## 2026-04-04 — Phase 8 Batch 6 — Reports Page + File Upload Attachments
 - Agent:               CLAUDE_CODE
 - Why:                 Batch 6 — 5-tab reports page with filters/CSV export + MinIO file attachments for POs and stock-in receipts
