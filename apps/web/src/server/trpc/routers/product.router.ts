@@ -139,6 +139,50 @@ export const productRouter = createTRPCRouter({
       );
     }),
 
+  serialsByProductId: tenantProcedure
+    .input(
+      z.object({
+        productId: z.string().cuid(),
+        status: z.enum(['in_stock', 'issued', 'adjusted']).optional(),
+        page: z.number().int().min(1).default(1),
+        limit: z.number().int().min(1).max(200).default(50),
+      }).strict(),
+    )
+    .query(async ({ ctx, input }) => {
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
+      const tenantId = ctx.tenantId!;
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
+      const userId = ctx.userId!;
+      return withTenantContext(
+        { tenantId, userId },
+        async () => {
+          const where = {
+            tenantId,
+            productId: input.productId,
+            ...(input.status !== undefined ? { status: input.status } : {}),
+          };
+          const [items, total] = await Promise.all([
+            prisma.serialNumber.findMany({
+              where,
+              skip: (input.page - 1) * input.limit,
+              take: input.limit,
+              orderBy: { serialValue: 'asc' },
+              select: {
+                id: true,
+                serialValue: true,
+                barcodeValue: true,
+                status: true,
+                stockInItemId: true,
+                stockOutItemId: true,
+              },
+            }),
+            prisma.serialNumber.count({ where }),
+          ]);
+          return { items, total, page: input.page, limit: input.limit, totalPages: Math.ceil(total / input.limit) };
+        },
+      );
+    }),
+
   update: tenantProcedure
     .use(requireRole(UserRole.ADMIN))
     .input(

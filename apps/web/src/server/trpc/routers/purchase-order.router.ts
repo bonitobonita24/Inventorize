@@ -137,7 +137,7 @@ export const purchaseOrderRouter = createTRPCRouter({
           include: {
             supplier: { select: { name: true } },
             items: {
-              include: { product: { select: { name: true, productCode: true } } },
+              include: { product: { select: { name: true, productCode: true, serialTrackingEnabled: true } } },
             },
           },
         });

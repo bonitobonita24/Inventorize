@@ -1,6 +1,7 @@
-// Stock in router — tenant-scoped receiving with atomic quantity updates
+// Stock in router — tenant-scoped receiving with atomic quantity updates + serial tracking
 
 import { z } from 'zod';
+import { TRPCError } from '@trpc/server';
 import { createTRPCRouter, tenantProcedure } from '../trpc';
 import { requireRole } from '../middleware/rbac';
 import { UserRole } from '@inventorize/shared/enums';
@@ -51,6 +52,8 @@ export const stockInRouter = createTRPCRouter({
             productId: z.string().cuid(),
             quantity: z.number().int().min(1),
             supplierCostSnapshot: z.number().min(0),
+            // serialValues required when product.serialTrackingEnabled; count must equal quantity
+            serialValues: z.array(z.string().min(1).max(100)).optional(),
           }).strict(),
         ).min(1),
       }).strict(),
@@ -61,7 +64,25 @@ export const stockInRouter = createTRPCRouter({
       return withTenantContext(
         { tenantId, userId },
         async () => {
-          // Atomic transaction — stock in + quantity update + movement log
+          // Pre-validate serial counts before entering the transaction
+          for (const item of input.items) {
+            const product = await prisma.product.findFirst({
+              where: { id: item.productId, tenantId },
+              select: { serialTrackingEnabled: true, name: true },
+            });
+            if (product === null) throw new TRPCError({ code: 'BAD_REQUEST', message: 'Product not found.' });
+            if (product.serialTrackingEnabled) {
+              const count = (item.serialValues ?? []).length;
+              if (count !== item.quantity) {
+                throw new TRPCError({
+                  code: 'BAD_REQUEST',
+                  message: `${product.name} requires exactly ${item.quantity} serial number(s). Got ${count}.`,
+                });
+              }
+            }
+          }
+
+          // Atomic transaction — stock in + serial records + quantity update + movement log
           return prisma.$transaction(async (tx) => {
             const stockIn = await tx.stockIn.create({
               data: {
@@ -71,7 +92,14 @@ export const stockInRouter = createTRPCRouter({
                 receivedDate: new Date(input.receivedDate),
                 receivedByUserId: userId,
                 notes: input.notes,
-                items: { create: input.items.map((item) => ({ ...item, tenantId })) },
+                items: {
+                  create: input.items.map(({ productId, quantity, supplierCostSnapshot }) => ({
+                    productId,
+                    quantity,
+                    supplierCostSnapshot,
+                    tenantId,
+                  })),
+                },
               },
             });
 
@@ -80,8 +108,9 @@ export const stockInRouter = createTRPCRouter({
               where: { stockInId: stockIn.id },
             });
 
-            // Update product quantities and create movement logs
+            // Update product quantities, create movement logs, and create serial records
             for (const item of stockInItems) {
+              const inputItem = input.items.find((i) => i.productId === item.productId);
               const product = await tx.product.findFirstOrThrow({
                 where: { id: item.productId, tenantId },
               });
@@ -105,6 +134,31 @@ export const stockInRouter = createTRPCRouter({
                   performedAt: new Date(),
                 },
               });
+
+              // Create serial number records when product is serial-tracked
+              const serialValues = inputItem?.serialValues ?? [];
+              if (serialValues.length > 0) {
+                // Validate uniqueness within tenant+product
+                const existing = await tx.serialNumber.findFirst({
+                  where: { tenantId, productId: item.productId, serialValue: { in: serialValues } },
+                  select: { serialValue: true },
+                });
+                if (existing !== null) {
+                  throw new TRPCError({
+                    code: 'BAD_REQUEST',
+                    message: `Serial number "${existing.serialValue}" already exists for this product.`,
+                  });
+                }
+                await tx.serialNumber.createMany({
+                  data: serialValues.map((sv) => ({
+                    tenantId,
+                    productId: item.productId,
+                    serialValue: sv,
+                    status: 'in_stock' as const,
+                    stockInItemId: item.id,
+                  })),
+                });
+              }
             }
 
             // Update PO received quantities and auto-update status when linked

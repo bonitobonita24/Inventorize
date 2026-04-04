@@ -1,4 +1,4 @@
-// Stock in list page with barcode scanner for quick product lookup
+// Stock in list page with barcode scanner for quick product lookup + serial number entry
 
 'use client';
 
@@ -11,6 +11,9 @@ interface PendingItem {
   productName: string;
   quantity: number;
   supplierCostSnapshot: number;
+  serialTrackingEnabled: boolean;
+  serialValues: string[];
+  serialInput: string; // current text field value for adding a serial
 }
 
 export default function StockInPage() {
@@ -51,7 +54,6 @@ export default function StockInPage() {
     setSelectedPoId(poId);
     const po = receivablePOs?.find((p) => p.id === poId);
     if (po === undefined) return;
-    // Auto-populate items with remaining quantities from the PO
     const items: PendingItem[] = po.items
       .filter((item) => item.orderedQty - item.receivedQty > 0)
       .map((item) => ({
@@ -59,14 +61,25 @@ export default function StockInPage() {
         productName: item.product.name,
         quantity: item.orderedQty - item.receivedQty,
         supplierCostSnapshot: Number(item.supplierCostSnapshot),
+        serialTrackingEnabled: item.product.serialTrackingEnabled,
+        serialValues: [],
+        serialInput: '',
       }));
     setPendingItems(items);
   };
 
-  const addItem = (product: { id: string; name: string }, quantity: number, cost: number) => {
+  const addItem = (product: { id: string; name: string; serialTrackingEnabled: boolean }, quantity: number, cost: number) => {
     setPendingItems((prev) => [
       ...prev,
-      { productId: product.id, productName: product.name, quantity, supplierCostSnapshot: cost },
+      {
+        productId: product.id,
+        productName: product.name,
+        quantity,
+        supplierCostSnapshot: cost,
+        serialTrackingEnabled: product.serialTrackingEnabled,
+        serialValues: [],
+        serialInput: '',
+      },
     ]);
     setScanResult(null);
   };
@@ -75,16 +88,41 @@ export default function StockInPage() {
     setPendingItems((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const updateItemField = <K extends keyof PendingItem>(index: number, field: K, value: PendingItem[K]) => {
+    setPendingItems((prev) => prev.map((it, i) => (i === index ? { ...it, [field]: value } : it)));
+  };
+
+  const addSerial = (index: number) => {
+    const item = pendingItems[index];
+    if (item === undefined) return;
+    const val = item.serialInput.trim();
+    if (val.length === 0) return;
+    if (item.serialValues.includes(val)) return; // duplicate within the form
+    updateItemField(index, 'serialValues', [...item.serialValues, val]);
+    updateItemField(index, 'serialInput', '');
+  };
+
+  const removeSerial = (itemIndex: number, serialVal: string) => {
+    const item = pendingItems[itemIndex];
+    if (item === undefined) return;
+    updateItemField(itemIndex, 'serialValues', item.serialValues.filter((s) => s !== serialVal));
+  };
+
+  const serialsValid = pendingItems.every((item) =>
+    !item.serialTrackingEnabled || item.serialValues.length === item.quantity,
+  );
+
   const handleSubmit = () => {
-    if (pendingItems.length === 0) return;
+    if (pendingItems.length === 0 || !serialsValid) return;
     createMutation.mutate({
       purchaseOrderId: selectedPoId,
       receivedDate: new Date().toISOString(),
       notes: notes.length > 0 ? notes : null,
-      items: pendingItems.map(({ productId, quantity, supplierCostSnapshot }) => ({
+      items: pendingItems.map(({ productId, quantity, supplierCostSnapshot, serialTrackingEnabled, serialValues }) => ({
         productId,
         quantity,
         supplierCostSnapshot,
+        ...(serialTrackingEnabled && serialValues.length > 0 ? { serialValues } : {}),
       })),
     });
   };
@@ -150,12 +188,15 @@ export default function StockInPage() {
                     <button
                       key={p.id}
                       type="button"
-                      onClick={() => { addItem({ id: p.id, name: p.name }, 1, 0); }}
+                      onClick={() => { addItem({ id: p.id, name: p.name, serialTrackingEnabled: p.serialTrackingEnabled }, 1, 0); }}
                       className="flex w-full items-center justify-between rounded px-3 py-2 text-left text-sm hover:bg-muted"
                     >
                       <span>
                         <span className="font-medium">{p.name}</span>
                         <span className="ml-2 text-xs text-muted-foreground">{p.productCode}</span>
+                        {p.serialTrackingEnabled && (
+                          <span className="ml-2 rounded bg-blue-100 px-1 py-0.5 text-xs text-blue-700">Serial</span>
+                        )}
                       </span>
                       <span className="text-xs text-muted-foreground">Qty: {p.currentQuantity}</span>
                     </button>
@@ -166,66 +207,117 @@ export default function StockInPage() {
           )}
 
           {pendingItems.length > 0 && (
-            <div className="rounded-md border border-border">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border bg-muted/50">
-                    <th className="px-4 py-2 text-left font-medium">Product</th>
-                    <th className="px-4 py-2 text-right font-medium">Qty</th>
-                    <th className="px-4 py-2 text-right font-medium">Unit Cost</th>
-                    <th className="px-4 py-2 text-right font-medium"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pendingItems.map((item, i) => (
-                    <tr key={`${item.productId}-${i}`} className="border-b border-border">
-                      <td className="px-4 py-2">{item.productName}</td>
-                      <td className="px-4 py-2 text-right">
-                        <input
-                          type="number"
-                          min={1}
-                          value={item.quantity}
-                          onChange={(e) => {
-                            const q = parseInt(e.target.value, 10);
-                            if (q > 0) {
-                              setPendingItems((prev) =>
-                                prev.map((it, idx) => (idx === i ? { ...it, quantity: q } : it)),
-                              );
+            <div className="space-y-3">
+              {pendingItems.map((item, i) => (
+                <div key={`${item.productId}-${i}`} className="rounded-md border border-border p-3">
+                  {/* Item header row */}
+                  <div className="flex items-center gap-3">
+                    <span className="flex-1 text-sm font-medium">
+                      {item.productName}
+                      {item.serialTrackingEnabled && (
+                        <span className="ml-2 rounded bg-blue-100 px-1 py-0.5 text-xs text-blue-700">Serial tracking</span>
+                      )}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <label className="text-xs text-muted-foreground">Qty</label>
+                      <input
+                        type="number"
+                        min={1}
+                        value={item.quantity}
+                        onChange={(e) => {
+                          const q = parseInt(e.target.value, 10);
+                          if (q > 0) {
+                            updateItemField(i, 'quantity', q);
+                            // Clear serials if quantity changed on serial-tracked items
+                            if (item.serialTrackingEnabled) {
+                              updateItemField(i, 'serialValues', []);
                             }
-                          }}
-                          className="w-20 rounded border border-border bg-background px-2 py-1 text-right text-sm"
-                        />
-                      </td>
-                      <td className="px-4 py-2 text-right">
-                        <input
-                          type="number"
-                          min={0}
-                          step={0.01}
-                          value={item.supplierCostSnapshot}
-                          onChange={(e) => {
-                            const c = parseFloat(e.target.value);
-                            if (c >= 0) {
-                              setPendingItems((prev) =>
-                                prev.map((it, idx) => (idx === i ? { ...it, supplierCostSnapshot: c } : it)),
-                              );
-                            }
-                          }}
-                          className="w-24 rounded border border-border bg-background px-2 py-1 text-right text-sm"
-                        />
-                      </td>
-                      <td className="px-4 py-2 text-right">
-                        <button
-                          type="button"
-                          onClick={() => { removeItem(i); }}
-                          className="text-sm text-red-600 hover:underline"
-                        >
-                          Remove
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                          }
+                        }}
+                        className="w-20 rounded border border-border bg-background px-2 py-1 text-right text-sm"
+                      />
+                      <label className="text-xs text-muted-foreground">Unit Cost</label>
+                      <input
+                        type="number"
+                        min={0}
+                        step={0.01}
+                        value={item.supplierCostSnapshot}
+                        onChange={(e) => {
+                          const c = parseFloat(e.target.value);
+                          if (c >= 0) updateItemField(i, 'supplierCostSnapshot', c);
+                        }}
+                        className="w-24 rounded border border-border bg-background px-2 py-1 text-right text-sm"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { removeItem(i); }}
+                      className="text-sm text-red-600 hover:underline"
+                    >
+                      Remove
+                    </button>
+                  </div>
+
+                  {/* Serial entry panel — shown only for serial-tracked products */}
+                  {item.serialTrackingEnabled && (
+                    <div className="mt-3 rounded-md bg-muted/40 p-3">
+                      <p className="mb-2 text-xs font-medium text-muted-foreground">
+                        Serial Numbers — {item.serialValues.length} / {item.quantity} entered
+                        {item.serialValues.length === item.quantity ? (
+                          <span className="ml-2 text-green-600">✓ Complete</span>
+                        ) : (
+                          <span className="ml-2 text-amber-600">({item.quantity - item.serialValues.length} remaining)</span>
+                        )}
+                      </p>
+
+                      {/* Entered serials */}
+                      {item.serialValues.length > 0 && (
+                        <div className="mb-2 flex flex-wrap gap-1">
+                          {item.serialValues.map((sv) => (
+                            <span
+                              key={sv}
+                              className="flex items-center gap-1 rounded bg-background px-2 py-0.5 text-xs font-mono border border-border"
+                            >
+                              {sv}
+                              <button
+                                type="button"
+                                onClick={() => { removeSerial(i, sv); }}
+                                className="text-red-500 hover:text-red-700 leading-none"
+                              >
+                                ×
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Serial scan/type input — hidden when count is met */}
+                      {item.serialValues.length < item.quantity && (
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={item.serialInput}
+                            onChange={(e) => { updateItemField(i, 'serialInput', e.target.value); }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') { e.preventDefault(); addSerial(i); }
+                            }}
+                            placeholder="Scan or type serial number, press Enter"
+                            className="flex-1 rounded border border-border bg-background px-3 py-1.5 text-sm font-mono"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => { addSerial(i); }}
+                            disabled={item.serialInput.trim().length === 0}
+                            className="rounded bg-secondary px-3 py-1.5 text-sm font-medium disabled:opacity-50"
+                          >
+                            Add
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
           )}
 
@@ -237,10 +329,16 @@ export default function StockInPage() {
             rows={2}
           />
 
+          {!serialsValid && pendingItems.some((it) => it.serialTrackingEnabled) && (
+            <p className="text-sm text-amber-600">
+              Please enter all required serial numbers before submitting.
+            </p>
+          )}
+
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={pendingItems.length === 0 || createMutation.isPending}
+            disabled={pendingItems.length === 0 || !serialsValid || createMutation.isPending}
             className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
           >
             {createMutation.isPending ? 'Saving...' : `Receive ${pendingItems.length} item(s)`}
