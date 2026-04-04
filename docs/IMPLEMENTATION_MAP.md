@@ -5,7 +5,7 @@
 ## Project Info
 - App Name:     Inventorize
 - App Slug:     inventorize
-- Phase:        Phase 8 — Iterative Buildout (Batches 1–4 complete)
+- Phase:        Phase 8 — Iterative Buildout (Batches 1–5 complete)
 - Last Updated: 2026-04-04
 
 ---
@@ -19,7 +19,7 @@
 - [x] Phase 5: Validation (all 9 commands pass)
 - [x] Phase 6: Docker Startup
 - [x] Phase 7: Feature Updates (via Phase 8 batches)
-- [ ] Phase 8: Iterative Buildout (Batches 1–4 of N complete)
+- [ ] Phase 8: Iterative Buildout (Batches 1–5 of N complete)
 
 ---
 
@@ -85,11 +85,11 @@
 - [x] apps/web/src/server/trpc/middleware/rbac.ts (L3 RBAC role guard)
 - [x] apps/web/src/server/trpc/middleware/tenant.ts (L1 tenant scope enforcement)
 - [x] apps/web/src/server/trpc/routers/ — 10 routers:
-  - [x] product.router.ts (CRUD, list with cursor pagination, stock history)
+  - [x] product.router.ts (CRUD, list with cursor pagination, stock history) ✦ Batch 5: serialsByProductId query (paginated, status filter)
   - [x] supplier.router.ts (CRUD, list)
-  - [x] purchase-order.router.ts (CRUD, status transitions, list, listReceivable) ✦ Batch 4: listReceivable for stock-in PO selector; byId includes stockIns
+  - [x] purchase-order.router.ts (CRUD, status transitions, list, listReceivable) ✦ Batch 4: listReceivable for stock-in PO selector; byId includes stockIns ✦ Batch 5: listReceivable items include serialTrackingEnabled
   - [x] stock-in.router.ts (create with serial numbers, list) ✦ Batch 4: create propagates receivedQty to PurchaseOrderItem + auto-updates PO status
-  - [x] stock-out.router.ts (create with slip number, list)
+  - [x] stock-out.router.ts (create with slip number, list) ✦ Batch 5: serialsForProduct query; create validates serials + marks issued; list includes releasedByUser + item product details
   - [x] stock-adjustment.router.ts (create, list)
   - [x] user.router.ts (CRUD, role assignment, impersonation)
   - [x] audit-log.router.ts (list with filters)
@@ -103,11 +103,11 @@
   - [x] api/trpc/[trpc]/route.ts (tRPC API handler)
   - [x] [tenantSlug]/layout.tsx (tenant layout with sidebar nav)
   - [x] [tenantSlug]/dashboard/page.tsx ✦ Batch 1: recharts KPI charts (bar, line, pie, area)
-  - [x] [tenantSlug]/products/page.tsx + [id]/page.tsx + [id]/history/page.tsx ✦ Batch 3: create/edit form (admin-only), real-time price preview, serial tracking toggle, Decimal conversion, deactivate/activate
+  - [x] [tenantSlug]/products/page.tsx + [id]/page.tsx + [id]/history/page.tsx ✦ Batch 3: create/edit form (admin-only), real-time price preview, serial tracking toggle, Decimal conversion, deactivate/activate ✦ Batch 5: [id]/page.tsx has Serials tab (serialsByProductId, status filter, pagination, colored badges)
   - [x] [tenantSlug]/suppliers/page.tsx ✦ Batch 2: create/edit form, activate/deactivate toggle
   - [x] [tenantSlug]/purchase-orders/page.tsx + [id]/page.tsx ✦ Batch 3: create form with dynamic line items, supplier dropdown, auto-fill cost, order total, supplier name in list ✦ Batch 4: [id]/page.tsx shows linked Receipts section (stock-in referenceNumber + receivedDate)
-  - [x] [tenantSlug]/stock-in/page.tsx ✦ Batch 1: BarcodeScanner + create form ✦ Batch 4: PO dropdown selector, auto-populate remaining items, purchaseOrderId in mutation, Linked PO column
-  - [x] [tenantSlug]/stock-out/page.tsx ✦ Batch 1: BarcodeScanner + create form
+  - [x] [tenantSlug]/stock-in/page.tsx ✦ Batch 1: BarcodeScanner + create form ✦ Batch 4: PO dropdown selector, auto-populate remaining items, purchaseOrderId in mutation, Linked PO column ✦ Batch 5: serial entry panel (scan/type serials, count progress, serialsValid gate)
+  - [x] [tenantSlug]/stock-out/page.tsx ✦ Batch 1: BarcodeScanner + create form ✦ Batch 5: SerialPicker (checkbox list of in_stock serials), PrintSlipModal (SO-XXXXX slip, window.print()), serialsValid gate
   - [x] [tenantSlug]/adjustments/page.tsx ✦ Batch 2: create form with reason enum, BarcodeScanner, delta preview
   - [x] [tenantSlug]/audit-logs/page.tsx ✦ Batch 2: entity type + date range filters, pagination, action badges
   - [x] [tenantSlug]/reports/page.tsx ✦ Batch 1: CSV export (movements + low stock)

@@ -3,6 +3,21 @@
 # Include agent attribution in every entry.
 # ---
 
+## 2026-04-04 — Phase 8 Batch 5 — Serial Tracking + Printable Stock-Out Slip
+- Agent:               CLAUDE_CODE
+- Why:                 Batch 5 — serial number lifecycle end-to-end (stock-in entry, stock-out selection, product view) + printable SO slip
+- Files added:         none
+- Files modified:      apps/web/src/server/trpc/routers/stock-out.router.ts (added serialsForProduct query; updated list includes for releasedByUser + item product details; create validates serial count + ownership, marks serials issued in transaction)
+                       apps/web/src/server/trpc/routers/product.router.ts (added serialsByProductId paginated query with status filter)
+                       apps/web/src/server/trpc/routers/purchase-order.router.ts (listReceivable: added serialTrackingEnabled to items' product select)
+                       apps/web/src/app/[tenantSlug]/stock-in/page.tsx (serial entry panel per item: chip display, scan/type input, Enter key, count progress, serialsValid gate on submit)
+                       apps/web/src/app/[tenantSlug]/stock-out/page.tsx (SerialPicker sub-component with checkbox list of in_stock serials; PrintSlipModal with window.print(); SlipRecord interface; serialsValid gate)
+                       apps/web/src/app/[tenantSlug]/products/[id]/page.tsx (SerialsTab sub-component with status filter + pagination; tab bar when serialTrackingEnabled; Serial tracked badge)
+- Files deleted:       none
+- Schema/migrations:   none (SerialNumber model + all relations already in schema)
+- Errors encountered:  TypeScript: exactOptionalPropertyTypes: true caused { in: string[] | undefined } incompatible with Prisma where clause
+- Errors resolved:     Extracted const ids = item.serialIds ?? []; and used id: { in: ids } — eliminates undefined from the type
+
 ## 2026-04-04 — Phase 8 Batch 4 — PO Detail + Stock-In PO Link
 - Agent:               CLAUDE_CODE
 - Why:                 Batch 4 — wire purchase order receiving flow end-to-end: PO detail shows linked receipts, stock-in auto-updates PO receivedQty and status, stock-in form has PO selector with auto-populated items
