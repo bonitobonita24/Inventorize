@@ -38,11 +38,29 @@ export default function PurchaseOrderDetailPage() {
   const id = params?.id as string | undefined;
 
   const [statusError, setStatusError] = useState('');
+  const [attachmentLoading, setAttachmentLoading] = useState(false);
 
   const { data: po, isLoading, refetch } = trpc.purchaseOrder.byId.useQuery(
     { id: id ?? '' },
     { enabled: id !== undefined && id.length > 0 },
   );
+
+  const getAttachmentUrl = trpc.purchaseOrder.getAttachmentUrl.useQuery(
+    { id: id ?? '' },
+    { enabled: false }, // only fetch on demand
+  );
+
+  const handleDownloadAttachment = async () => {
+    setAttachmentLoading(true);
+    try {
+      const result = await getAttachmentUrl.refetch();
+      if (result.data?.url !== undefined) {
+        window.open(result.data.url, '_blank');
+      }
+    } finally {
+      setAttachmentLoading(false);
+    }
+  };
 
   const updateStatus = trpc.purchaseOrder.updateStatus.useMutation({
     onSuccess: () => {
@@ -116,6 +134,22 @@ export default function PurchaseOrderDetailPage() {
         <div className="rounded-lg border border-border p-4">
           <p className="mb-1 text-xs font-medium text-muted-foreground">Notes</p>
           <p className="text-sm">{po.notes}</p>
+        </div>
+      )}
+
+      {/* Attachment */}
+      {(po as { attachmentUrl?: string | null }).attachmentUrl !== null &&
+       (po as { attachmentUrl?: string | null }).attachmentUrl !== undefined && (
+        <div className="rounded-lg border border-border p-4">
+          <p className="mb-2 text-xs font-medium text-muted-foreground">Attachment</p>
+          <button
+            type="button"
+            onClick={() => { void handleDownloadAttachment(); }}
+            disabled={attachmentLoading}
+            className="rounded-md border border-border px-3 py-1.5 text-sm font-medium hover:bg-muted disabled:opacity-50"
+          >
+            {attachmentLoading ? 'Loading…' : '⬇ Download Attachment'}
+          </button>
         </div>
       )}
 

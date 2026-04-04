@@ -1,11 +1,13 @@
 // Purchase order router — tenant-scoped CRUD + status management
 
 import { z } from 'zod';
+import { TRPCError } from '@trpc/server';
 import { createTRPCRouter, tenantProcedure } from '../trpc';
 import { requireRole } from '../middleware/rbac';
 import { UserRole } from '@inventorize/shared/enums';
 import { prisma } from '@inventorize/db';
 import { withTenantContext } from '@inventorize/db';
+import { getDownloadUrl } from '@inventorize/storage';
 
 export const purchaseOrderRouter = createTRPCRouter({
   list: tenantProcedure
@@ -71,6 +73,7 @@ export const purchaseOrderRouter = createTRPCRouter({
         orderDate: z.string().datetime(),
         expectedDate: z.string().datetime().nullable().default(null),
         notes: z.string().max(2000).nullable().default(null),
+        attachmentUrl: z.string().max(500).nullable().default(null),
         items: z.array(
           z.object({
             productId: z.string().cuid(),
@@ -86,10 +89,11 @@ export const purchaseOrderRouter = createTRPCRouter({
       return withTenantContext(
         { tenantId, userId },
         async () => {
-          const { items, ...poData } = input;
+          const { items, attachmentUrl, ...poData } = input;
           return prisma.purchaseOrder.create({
             data: {
               ...poData,
+              attachmentUrl,
               tenantId,
               poNumber: `PO-${Date.now()}`,
               status: 'draft',
@@ -122,6 +126,23 @@ export const purchaseOrderRouter = createTRPCRouter({
           });
         },
       );
+    }),
+
+  getAttachmentUrl: tenantProcedure
+    .input(z.object({ id: z.string().cuid() }).strict())
+    .query(async ({ ctx, input }) => {
+      const tenantId = ctx.tenantId;
+      const userId = ctx.userId!;
+      return withTenantContext({ tenantId, userId }, async () => {
+        const po = await prisma.purchaseOrder.findFirst({
+          where: { id: input.id, tenantId },
+          select: { attachmentUrl: true },
+        });
+        if (po === null || po.attachmentUrl === null) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'Resource not found.' });
+        }
+        return { url: await getDownloadUrl(po.attachmentUrl, tenantId) };
+      });
     }),
 
   // POs eligible for receiving (ordered or partially received) — used by stock-in form

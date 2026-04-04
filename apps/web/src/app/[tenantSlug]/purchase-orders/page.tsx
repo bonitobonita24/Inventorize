@@ -52,6 +52,9 @@ export default function PurchaseOrdersPage() {
   const [page, setPage] = useState(1);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<CreateFormData>(emptyForm);
+  const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const { data, isLoading, refetch } = trpc.purchaseOrder.list.useQuery({ page, limit: 50 });
 
@@ -68,6 +71,8 @@ export default function PurchaseOrdersPage() {
   const createMutation = trpc.purchaseOrder.create.useMutation({
     onSuccess: () => {
       setForm(emptyForm);
+      setAttachmentFile(null);
+      setUploadError(null);
       setShowForm(false);
       void refetch();
     },
@@ -110,7 +115,7 @@ export default function PurchaseOrdersPage() {
     });
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (form.supplierId.trim().length === 0) return;
     if (form.items.length === 0) return;
 
@@ -131,11 +136,37 @@ export default function PurchaseOrdersPage() {
     const orderDateISO = toISO(form.orderDate);
     if (orderDateISO === null) return;
 
+    // Upload attachment first if provided
+    let attachmentUrl: string | null = null;
+    if (attachmentFile !== null) {
+      setUploading(true);
+      setUploadError(null);
+      try {
+        const formData = new FormData();
+        formData.append('file', attachmentFile);
+        formData.append('entityType', 'po-attachment');
+        const res = await fetch('/api/upload', { method: 'POST', body: formData });
+        const json = await res.json() as { storagePath?: string; error?: string };
+        if (!res.ok || json.storagePath === undefined) {
+          setUploadError(json.error ?? 'Upload failed.');
+          setUploading(false);
+          return;
+        }
+        attachmentUrl = json.storagePath;
+      } catch {
+        setUploadError('Upload failed. Please try again.');
+        setUploading(false);
+        return;
+      }
+      setUploading(false);
+    }
+
     createMutation.mutate({
       supplierId: form.supplierId,
       orderDate: orderDateISO,
       expectedDate: toISO(form.expectedDate),
       notes: form.notes.trim().length > 0 ? form.notes.trim() : null,
+      attachmentUrl,
       items: validItems.map((item) => ({
         productId: item.productId,
         orderedQty: parseInt(item.orderedQty, 10),
@@ -146,6 +177,8 @@ export default function PurchaseOrdersPage() {
 
   const cancelForm = () => {
     setForm(emptyForm);
+    setAttachmentFile(null);
+    setUploadError(null);
     setShowForm(false);
   };
 
@@ -227,6 +260,21 @@ export default function PurchaseOrdersPage() {
                 placeholder="Optional notes"
                 className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
               />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium">Attachment (PDF/JPG/PNG, max 10MB)</label>
+              <input
+                type="file"
+                accept=".pdf,.jpg,.jpeg,.png"
+                onChange={(e) => {
+                  setAttachmentFile(e.target.files?.[0] ?? null);
+                  setUploadError(null);
+                }}
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-muted file:px-2 file:py-1 file:text-xs file:font-medium"
+              />
+              {uploadError !== null && (
+                <p className="mt-1 text-xs text-destructive">{uploadError}</p>
+              )}
             </div>
           </div>
 
@@ -322,11 +370,11 @@ export default function PurchaseOrdersPage() {
           <div className="flex gap-2">
             <button
               type="button"
-              onClick={handleSubmit}
-              disabled={!isFormValid || createMutation.isPending}
+              onClick={() => { void handleSubmit(); }}
+              disabled={!isFormValid || createMutation.isPending || uploading}
               className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
             >
-              {createMutation.isPending ? 'Saving...' : 'Save as Draft'}
+              {uploading ? 'Uploading...' : createMutation.isPending ? 'Saving...' : 'Save as Draft'}
             </button>
             <button
               type="button"

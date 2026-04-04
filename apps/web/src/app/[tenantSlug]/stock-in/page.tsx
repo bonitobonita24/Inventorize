@@ -2,7 +2,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { trpc } from '@/lib/trpc';
 import { BarcodeScanner } from '@/components/barcode-scanner';
 
@@ -23,9 +23,25 @@ export default function StockInPage() {
   const [notes, setNotes] = useState('');
   const [scanResult, setScanResult] = useState<string | null>(null);
   const [selectedPoId, setSelectedPoId] = useState<string | null>(null);
+  const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [fetchingAttachmentId, setFetchingAttachmentId] = useState<string | null>(null);
 
   const { data, isLoading, refetch } = trpc.stockIn.list.useQuery({ page, limit: 50 });
   const { data: receivablePOs } = trpc.purchaseOrder.listReceivable.useQuery();
+  const attachmentUrlQuery = trpc.stockIn.getAttachmentUrl.useQuery(
+    { id: fetchingAttachmentId ?? '' },
+    { enabled: fetchingAttachmentId !== null, staleTime: 0 },
+  );
+
+  useEffect(() => {
+    if (attachmentUrlQuery.data?.url !== undefined && fetchingAttachmentId !== null) {
+      window.open(attachmentUrlQuery.data.url, '_blank');
+      setFetchingAttachmentId(null);
+    }
+  }, [attachmentUrlQuery.data, fetchingAttachmentId]);
+
   const productSearch = trpc.product.list.useQuery(
     { page: 1, limit: 5, search: scanResult ?? '' },
     { enabled: scanResult !== null && scanResult.length > 0 },
@@ -37,6 +53,8 @@ export default function StockInPage() {
       setShowForm(false);
       setScanResult(null);
       setSelectedPoId(null);
+      setAttachmentFile(null);
+      setUploadError(null);
       void refetch();
     },
   });
@@ -112,12 +130,38 @@ export default function StockInPage() {
     !item.serialTrackingEnabled || item.serialValues.length === item.quantity,
   );
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (pendingItems.length === 0 || !serialsValid) return;
+
+    let attachmentUrl: string | null = null;
+    if (attachmentFile !== null) {
+      setUploading(true);
+      setUploadError(null);
+      const formData = new FormData();
+      formData.append('file', attachmentFile);
+      formData.append('entityType', 'delivery-receipt');
+      try {
+        const res = await fetch('/api/upload', { method: 'POST', body: formData });
+        const json = await res.json() as { storagePath?: string; error?: string };
+        if (!res.ok || json.storagePath === undefined) {
+          setUploadError(json.error ?? 'Upload failed.');
+          setUploading(false);
+          return;
+        }
+        attachmentUrl = json.storagePath;
+      } catch {
+        setUploadError('Upload failed. Please try again.');
+        setUploading(false);
+        return;
+      }
+      setUploading(false);
+    }
+
     createMutation.mutate({
       purchaseOrderId: selectedPoId,
       receivedDate: new Date().toISOString(),
       notes: notes.length > 0 ? notes : null,
+      attachmentUrl,
       items: pendingItems.map(({ productId, quantity, supplierCostSnapshot, serialTrackingEnabled, serialValues }) => ({
         productId,
         quantity,
@@ -329,6 +373,25 @@ export default function StockInPage() {
             rows={2}
           />
 
+          <div>
+            <label className="mb-1 block text-sm font-medium">
+              Delivery Receipt <span className="text-muted-foreground">(optional)</span>
+            </label>
+            <input
+              type="file"
+              accept=".pdf,.jpg,.jpeg,.png"
+              onChange={(e) => {
+                const file = e.target.files?.[0] ?? null;
+                setAttachmentFile(file);
+                setUploadError(null);
+              }}
+              className="block w-full text-sm text-muted-foreground file:mr-3 file:rounded file:border-0 file:bg-muted file:px-3 file:py-1.5 file:text-sm file:font-medium"
+            />
+            {uploadError !== null && (
+              <p className="mt-1 text-xs text-red-600">{uploadError}</p>
+            )}
+          </div>
+
           {!serialsValid && pendingItems.some((it) => it.serialTrackingEnabled) && (
             <p className="text-sm text-amber-600">
               Please enter all required serial numbers before submitting.
@@ -337,11 +400,11 @@ export default function StockInPage() {
 
           <button
             type="button"
-            onClick={handleSubmit}
-            disabled={pendingItems.length === 0 || !serialsValid || createMutation.isPending}
+            onClick={() => { void handleSubmit(); }}
+            disabled={pendingItems.length === 0 || !serialsValid || createMutation.isPending || uploading}
             className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
           >
-            {createMutation.isPending ? 'Saving...' : `Receive ${pendingItems.length} item(s)`}
+            {uploading ? 'Uploading...' : createMutation.isPending ? 'Saving...' : `Receive ${pendingItems.length} item(s)`}
           </button>
 
           {createMutation.isError && (
@@ -361,6 +424,7 @@ export default function StockInPage() {
                 <th className="px-4 py-3 text-left font-medium">Linked PO</th>
                 <th className="px-4 py-3 text-left font-medium">Date</th>
                 <th className="px-4 py-3 text-right font-medium">Items</th>
+                <th className="px-4 py-3 text-left font-medium">Receipt</th>
               </tr>
             </thead>
             <tbody>
@@ -372,11 +436,26 @@ export default function StockInPage() {
                   </td>
                   <td className="px-4 py-3 text-xs">{new Date(stockIn.receivedDate).toLocaleDateString()}</td>
                   <td className="px-4 py-3 text-right">{stockIn.items.length}</td>
+                  <td className="px-4 py-3">
+                    {(stockIn as { attachmentUrl?: string | null }).attachmentUrl !== null &&
+                     (stockIn as { attachmentUrl?: string | null }).attachmentUrl !== undefined ? (
+                      <button
+                        type="button"
+                        onClick={() => { setFetchingAttachmentId(stockIn.id); }}
+                        disabled={fetchingAttachmentId === stockIn.id}
+                        className="text-xs text-primary underline hover:no-underline disabled:opacity-50"
+                      >
+                        {fetchingAttachmentId === stockIn.id ? 'Loading…' : '⬇ View'}
+                      </button>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
+                  </td>
                 </tr>
               ))}
               {data?.items.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">
                     No stock-in records yet
                   </td>
                 </tr>

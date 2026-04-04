@@ -113,35 +113,108 @@ export const reportRouter = createTRPCRouter({
       return withTenantContext(
         { tenantId, userId },
         async () => {
-          const [totalProducts, activeProducts, lowStockProducts, totalValue] = await Promise.all([
+          const [totalProducts, activeProducts, lowStockRaw, totalValue] = await Promise.all([
             prisma.product.count({ where: { tenantId } }),
             prisma.product.count({ where: { tenantId, isActive: true } }),
-            // Count products where current quantity is at or below threshold
-            prisma.product.count({
-              where: {
-                tenantId,
-                isActive: true,
-              },
+            prisma.product.findMany({
+              where: { tenantId, isActive: true },
+              select: { currentQuantity: true, lowStockThreshold: true },
             }),
-            // Sum of currentQuantity * sellingPrice for all active products
             prisma.product.findMany({
               where: { tenantId, isActive: true },
               select: { currentQuantity: true, sellingPrice: true },
             }),
           ]);
 
+          const lowStockProducts = lowStockRaw.filter(
+            (p) => p.currentQuantity <= p.lowStockThreshold,
+          ).length;
+
           const inventoryValue = totalValue.reduce(
             (sum, p) => sum + p.currentQuantity * p.sellingPrice.toNumber(),
             0,
           );
 
-          return {
-            totalProducts,
-            activeProducts,
-            lowStockProducts,
-            inventoryValue,
-          };
+          return { totalProducts, activeProducts, lowStockProducts, inventoryValue };
         },
       );
+    }),
+
+  // Full inventory snapshot — all active products with current quantity and value
+  inventorySnapshot: tenantProcedure
+    .input(
+      z.object({
+        page: z.number().int().min(1).default(1),
+        limit: z.number().int().min(1).max(200).default(50),
+        search: z.string().max(100).optional(),
+        category: z.string().max(100).optional(),
+      }).strict(),
+    )
+    .query(async ({ ctx, input }) => {
+      const tenantId = ctx.tenantId;
+      const userId = ctx.userId!;
+      const isAdminOrPurchasing =
+        ctx.roles.includes('admin') || ctx.roles.includes('purchasing_staff');
+      return withTenantContext({ tenantId, userId }, async () => {
+        const where = {
+          tenantId,
+          isActive: true,
+          ...(input.search !== undefined && input.search.length > 0
+            ? {
+                OR: [
+                  { name: { contains: input.search, mode: 'insensitive' as const } },
+                  { productCode: { contains: input.search, mode: 'insensitive' as const } },
+                ],
+              }
+            : {}),
+          ...(input.category !== undefined && input.category.length > 0
+            ? { category: { equals: input.category, mode: 'insensitive' as const } }
+            : {}),
+        };
+        const [items, total] = await Promise.all([
+          prisma.product.findMany({
+            where,
+            skip: (input.page - 1) * input.limit,
+            take: input.limit,
+            orderBy: { name: 'asc' },
+            select: {
+              id: true,
+              productCode: true,
+              name: true,
+              category: true,
+              unit: true,
+              currentQuantity: true,
+              lowStockThreshold: true,
+              sellingPrice: true,
+              serialTrackingEnabled: true,
+              // Cost fields only for admin / purchasing_staff
+              ...(isAdminOrPurchasing
+                ? { supplierCost: true, markupPercent: true }
+                : {}),
+            },
+          }),
+          prisma.product.count({ where }),
+        ]);
+        return {
+          items: items.map((p) => ({
+            ...p,
+            sellingPrice: p.sellingPrice.toNumber(),
+            supplierCost:
+              isAdminOrPurchasing && 'supplierCost' in p
+                ? (p.supplierCost as { toNumber: () => number }).toNumber()
+                : null,
+            markupPercent:
+              isAdminOrPurchasing && 'markupPercent' in p
+                ? (p.markupPercent as { toNumber: () => number }).toNumber()
+                : null,
+            inventoryValue: p.currentQuantity * p.sellingPrice.toNumber(),
+            isLowStock: p.currentQuantity <= p.lowStockThreshold,
+          })),
+          total,
+          page: input.page,
+          limit: input.limit,
+          totalPages: Math.ceil(total / input.limit),
+        };
+      });
     }),
 });

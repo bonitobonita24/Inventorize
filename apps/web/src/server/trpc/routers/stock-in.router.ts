@@ -7,6 +7,7 @@ import { requireRole } from '../middleware/rbac';
 import { UserRole } from '@inventorize/shared/enums';
 import { prisma } from '@inventorize/db';
 import { withTenantContext } from '@inventorize/db';
+import { getDownloadUrl } from '@inventorize/storage';
 
 export const stockInRouter = createTRPCRouter({
   list: tenantProcedure
@@ -47,6 +48,7 @@ export const stockInRouter = createTRPCRouter({
         purchaseOrderId: z.string().cuid().nullable().default(null),
         receivedDate: z.string().datetime(),
         notes: z.string().max(2000).nullable().default(null),
+        attachmentUrl: z.string().max(500).nullable().default(null),
         items: z.array(
           z.object({
             productId: z.string().cuid(),
@@ -92,6 +94,7 @@ export const stockInRouter = createTRPCRouter({
                 receivedDate: new Date(input.receivedDate),
                 receivedByUserId: userId,
                 notes: input.notes,
+                attachmentUrl: input.attachmentUrl,
                 items: {
                   create: input.items.map(({ productId, quantity, supplierCostSnapshot }) => ({
                     productId,
@@ -194,5 +197,22 @@ export const stockInRouter = createTRPCRouter({
           });
         },
       );
+    }),
+
+  getAttachmentUrl: tenantProcedure
+    .input(z.object({ id: z.string().cuid() }).strict())
+    .query(async ({ ctx, input }) => {
+      const tenantId = ctx.tenantId;
+      const userId = ctx.userId!;
+      return withTenantContext({ tenantId, userId }, async () => {
+        const stockIn = await prisma.stockIn.findFirst({
+          where: { id: input.id, tenantId },
+          select: { attachmentUrl: true },
+        });
+        if (stockIn === null || stockIn.attachmentUrl === null) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'Resource not found.' });
+        }
+        return { url: await getDownloadUrl(stockIn.attachmentUrl, tenantId) };
+      });
     }),
 });
