@@ -2,6 +2,8 @@
 
 'use client';
 
+import Link from 'next/link';
+import { useParams } from 'next/navigation';
 import { trpc } from '@/lib/trpc';
 import {
   BarChart,
@@ -15,6 +17,8 @@ import {
 } from 'recharts';
 
 export default function DashboardPage() {
+  const params = useParams();
+  const tenantSlug = params?.tenantSlug as string | undefined;
   const { data: summary, isLoading: summaryLoading } = trpc.report.inventorySummary.useQuery();
   const { data: movements } = trpc.report.stockMovements.useQuery({ page: 1, limit: 200 });
   const { data: lowStock } = trpc.report.lowStock.useQuery({ page: 1, limit: 10 });
@@ -71,9 +75,19 @@ export default function DashboardPage() {
 
       {lowStockItems.length > 0 && (
         <div className="rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-900 dark:bg-red-950">
-          <h2 className="mb-3 text-lg font-semibold text-red-800 dark:text-red-200">
-            Low Stock Alert ({lowStockItems.length} items)
-          </h2>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-red-800 dark:text-red-200">
+              ⚠ Low Stock Alert — {lowStockItems.length} item{lowStockItems.length !== 1 ? 's' : ''} need attention
+            </h2>
+            {tenantSlug !== undefined && (
+              <Link
+                href={`/${tenantSlug}/reports`}
+                className="text-sm font-medium text-red-700 underline hover:no-underline dark:text-red-300"
+              >
+                View full report →
+              </Link>
+            )}
+          </div>
           <div className="space-y-2">
             {lowStockItems.slice(0, 5).map((item) => (
               <div key={item.id} className="flex items-center justify-between text-sm">
@@ -82,10 +96,15 @@ export default function DashboardPage() {
                   <span className="ml-2 text-xs text-red-600 dark:text-red-400">{item.productCode}</span>
                 </span>
                 <span className="font-mono text-red-700 dark:text-red-300">
-                  {item.currentQuantity} / {item.lowStockThreshold}
+                  {item.currentQuantity} / {item.lowStockThreshold} threshold
                 </span>
               </div>
             ))}
+            {lowStockItems.length > 5 && (
+              <p className="pt-1 text-xs text-red-600 dark:text-red-400">
+                …and {lowStockItems.length - 5} more. See the full report for details.
+              </p>
+            )}
           </div>
         </div>
       )}

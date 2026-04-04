@@ -34,11 +34,22 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           return null;
         }
 
-        // Update last login
-        await platformPrisma.user.update({
-          where: { id: user.id },
-          data: { lastLoginAt: new Date() },
-        });
+        // Update last login + write audit event atomically
+        await platformPrisma.$transaction([
+          platformPrisma.user.update({
+            where: { id: user.id },
+            data: { lastLoginAt: new Date() },
+          }),
+          platformPrisma.auditLog.create({
+            data: {
+              tenantId: user.tenantId,
+              actorUserId: user.id,
+              actionType: 'LOGIN',
+              entityType: 'User',
+              entityId: user.id,
+            },
+          }),
+        ]);
 
         return {
           id: user.id,
