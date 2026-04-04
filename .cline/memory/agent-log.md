@@ -21,4 +21,5 @@
 ## 2026-04-04 | CLAUDE_CODE | Phase 8 Batch 10 complete — logExport mutation (audit trail on CSV export), platformMetrics per-tenant active user breakdown, dashboard Stock In (30d) + Stock Out (30d) KPI cards via movementCounts query.
 ## 2026-04-04 | CLAUDE_CODE | Phase 8 Batch 11 complete — super_admin tenant impersonation (read-only support mode). startImpersonation/stopImpersonation on platform router, tenantMutationProcedure with blockIfImpersonating, all 8 tenant routers swapped to tenantMutationProcedure, JWT impersonation fields + trigger='update', ImpersonationBanner component, SessionProvider wrapper, middleware bypass for impersonating super_admin. Barcode lookup + slip numbering confirmed already implemented.
 ## 2026-04-05 | CLAUDE_CODE | PRODUCT.md fully implemented — all features, workflows, roles, and security layers built across Batches 1-11. No remaining gaps found.
+## 2026-04-05 | CLAUDE_CODE | README.md generated — Phase 8 complete. Covers: project overview, tech stack, quick start, dev commands, docker pipeline, architecture, security layers, git workflow, deployment.
 # ---
