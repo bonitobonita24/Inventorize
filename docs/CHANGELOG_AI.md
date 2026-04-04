@@ -3,6 +3,16 @@
 # Include agent attribution in every entry.
 # ---
 
+## 2026-04-04 — Phase 8 Batch 10: Export audit logging, per-tenant metrics, dashboard stock counts
+- Agent:               CLAUDE_CODE
+- Why:                 Close remaining PRODUCT.md gaps: export audit trail, platform metrics user breakdown, dashboard period counts
+- Files added:         none
+- Files modified:      report.router.ts, platform.router.ts, reports/page.tsx, dashboard/page.tsx, platform/metrics/page.tsx
+- Files deleted:       none
+- Schema/migrations:   none (uses existing AuditLog + StockMovementLog models)
+- Errors encountered:  none
+- Errors resolved:     none
+
 ## 2026-04-04 — Phase 8 Batch 9 — Atomic Onboarding, Attachment Delete, Serial Status Guards
 - Agent:               CLAUDE_CODE
 - Why:                 Batch 9 — wrap platform mutations in $transaction for atomicity, add file attachment deletion for PO and stock-in, enforce in_stock serial status before adjustment

@@ -5,7 +5,7 @@
 ## Project Info
 - App Name:     Inventorize
 - App Slug:     inventorize
-- Phase:        Phase 8 — Iterative Buildout (Batches 1–9 complete)
+- Phase:        Phase 8 — Iterative Buildout (Batches 1–10 complete)
 - Last Updated: 2026-04-04
 
 ---
@@ -19,7 +19,7 @@
 - [x] Phase 5: Validation (all 9 commands pass)
 - [x] Phase 6: Docker Startup
 - [x] Phase 7: Feature Updates (via Phase 8 batches)
-- [ ] Phase 8: Iterative Buildout (Batches 1–8 of N complete)
+- [ ] Phase 8: Iterative Buildout (Batches 1–10 of N complete)
 
 ---
 
@@ -98,8 +98,8 @@
   - [x] stock-adjustment.router.ts (create, list) ✦ Batch 8: serialNumberId input, serial validation, serial status update, serialNumberId in movement log ✦ Batch 9: in_stock status guard — rejects issued/adjusted serials
   - [x] user.router.ts (CRUD, role assignment, impersonation) ✦ Batch 8: welcome email enqueue via BullMQ on user creation
   - [x] audit-log.router.ts (list with filters)
-  - [x] report.router.ts (dashboard KPIs, low stock, movement history, valuation) ✦ Batch 6: inventorySnapshot + inventorySummary added
-  - [x] platform.router.ts (superadmin: tenant CRUD, metrics, audit — separate Prisma instance) ✦ Batch 8: removed invalid isActive from tenant create ✦ Batch 9: atomic $transaction on createTenant, createTenantAdmin, updateTenantStatus (audit log rolls back on failure)
+  - [x] report.router.ts (dashboard KPIs, low stock, movement history, valuation) ✦ Batch 6: inventorySnapshot + inventorySummary added ✦ Batch 10: logExport mutation (audit trail on CSV export) + movementCounts query (period-based stock-in/out counts)
+  - [x] platform.router.ts (superadmin: tenant CRUD, metrics, audit — separate Prisma instance) ✦ Batch 8: removed invalid isActive from tenant create ✦ Batch 9: atomic $transaction on createTenant, createTenantAdmin, updateTenantStatus (audit log rolls back on failure) ✦ Batch 10: platformMetrics returns per-tenant active user breakdown
 - [x] apps/web/src/app/ — Pages:
   - [x] layout.tsx (root layout with TRPCProvider)
   - [x] login/page.tsx
@@ -107,7 +107,7 @@
   - [x] api/health/route.ts (GET /api/health → 200)
   - [x] api/trpc/[trpc]/route.ts (tRPC API handler)
   - [x] [tenantSlug]/layout.tsx (tenant layout with sidebar nav)
-  - [x] [tenantSlug]/dashboard/page.tsx ✦ Batch 1: recharts KPI charts (bar, line, pie, area) ✦ Batch 7: low-stock banner: item count, "need attention" headline, "View full report" link, "and X more" overflow
+  - [x] [tenantSlug]/dashboard/page.tsx ✦ Batch 1: recharts KPI charts (bar, line, pie, area) ✦ Batch 7: low-stock banner: item count, "need attention" headline, "View full report" link, "and X more" overflow ✦ Batch 10: Stock In (30d) + Stock Out (30d) KPI cards
   - [x] [tenantSlug]/products/page.tsx + [id]/page.tsx + [id]/history/page.tsx ✦ Batch 3: create/edit form (admin-only), real-time price preview, serial tracking toggle, Decimal conversion, deactivate/activate ✦ Batch 5: [id]/page.tsx has Serials tab (serialsByProductId, status filter, pagination, colored badges) ✦ Batch 7: [id]/history/page.tsx — movementType select, startDate/endDate date pickers, clear button, pagination, Notes column
   - [x] [tenantSlug]/suppliers/page.tsx ✦ Batch 2: create/edit form, activate/deactivate toggle
   - [x] [tenantSlug]/purchase-orders/page.tsx + [id]/page.tsx ✦ Batch 3: create form with dynamic line items, supplier dropdown, auto-fill cost, order total, supplier name in list ✦ Batch 4: [id]/page.tsx shows linked Receipts section ✦ Batch 6: file attachment upload on create; download button on detail ✦ Batch 9: [id]/page.tsx delete attachment button with confirm dialog
@@ -115,10 +115,10 @@
   - [x] [tenantSlug]/stock-out/page.tsx ✦ Batch 1: BarcodeScanner + create form ✦ Batch 5: SerialPicker (checkbox list of in_stock serials), PrintSlipModal (SO-XXXXX slip, window.print()), serialsValid gate
   - [x] [tenantSlug]/adjustments/page.tsx ✦ Batch 2: create form with reason enum, BarcodeScanner, delta preview ✦ Batch 8: SerialPicker for serial-tracked products, serial column, serialNumberId in payload
   - [x] [tenantSlug]/audit-logs/page.tsx ✦ Batch 2: entity type + date range filters, pagination, action badges
-  - [x] [tenantSlug]/reports/page.tsx ✦ Batch 1: CSV export (movements + low stock) ✦ Batch 6: full rewrite — 5 tabs (stock movements, low stock, inventory snapshot, product history, audit trail); filters; CSV export per tab; admin-only audit trail tab
+  - [x] [tenantSlug]/reports/page.tsx ✦ Batch 1: CSV export (movements + low stock) ✦ Batch 6: full rewrite — 5 tabs (stock movements, low stock, inventory snapshot, product history, audit trail); filters; CSV export per tab; admin-only audit trail tab ✦ Batch 10: logExport mutation called before every CSV download
   - [x] apps/web/src/app/api/upload/route.ts ✦ Batch 6: non-tRPC multipart upload handler (manual auth + tenant guard + MinIO) — entityType: po-attachment | delivery-receipt
   - [x] [tenantSlug]/users/page.tsx ✦ Batch 3: create form, inline edit, disable/enable toggle, role assignment, search, pagination
-  - [x] platform/layout.tsx + tenants/page.tsx + audit-logs/page.tsx + metrics/page.tsx ✦ Batch 8: tenants/page.tsx full rewrite — create tenant + first admin onboarding, suspend/reactivate with dialog, search/filter, pagination
+  - [x] platform/layout.tsx + tenants/page.tsx + audit-logs/page.tsx + metrics/page.tsx ✦ Batch 8: tenants/page.tsx full rewrite — create tenant + first admin onboarding, suspend/reactivate with dialog, search/filter, pagination ✦ Batch 10: metrics/page.tsx per-tenant active user breakdown table
 - [x] apps/web/src/server/lib/rate-limit.ts (LRU-based, 4 tiers: public/auth/api/upload)
 - [x] apps/web/src/server/lib/sanitize.ts (DOMPurify — sanitize + sanitizePlainText)
 - [x] apps/web/src/lib/trpc.ts + trpc-provider.tsx (client-side tRPC hooks)
