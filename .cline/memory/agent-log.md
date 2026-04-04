@@ -9,4 +9,11 @@
 ## 2026-04-03 | CLAUDE_CODE | Phase 2.7 spec stress-test run — 5 gaps found in PRODUCT.md, all resolved with user input
 ## 2026-04-03 | CLAUDE_CODE | Phase 2.7 gaps resolved: (1) dashboard flow added, (2) impersonation enforcement defined, (3) first-login mechanism = one-time setup token 24h, (4) slug collision = editable field + inline error, (5) printableSlipNumber = SO-XXXXX per tenant
 ## 2026-04-03 | CLAUDE_CODE | Phase 3 complete — inputs.yml, inputs.schema.json, .env.dev, .env.staging, .env.prod, .env.example, CREDENTIALS.md generated. 8 decisions locked in DECISIONS_LOG.md.
+## 2026-04-04 | CLAUDE_CODE | Phase 8 Batch 1 complete — dashboard KPI charts (recharts), BarcodeScanner component, stock-in + stock-out create forms, reports CSV export.
+## 2026-04-04 | CLAUDE_CODE | Phase 8 Batch 2 complete — suppliers CRUD, adjustments with reason enum, audit-log page with filters, user management (create/edit/disable/enable/role assignment).
+## 2026-04-04 | CLAUDE_CODE | Phase 8 Batch 3 complete — products CRUD (admin-only), PO create with line items, users page search+pagination, serial tracking toggle.
+## 2026-04-04 | CLAUDE_CODE | Phase 8 Batch 4 complete — PO receiving flow (listReceivable, auto-populate stock-in form, receivedQty propagation to PO items + status, Receipts panel on PO detail).
+## 2026-04-04 | CLAUDE_CODE | Phase 8 Batch 5 complete — serial number lifecycle (stock-in entry, stock-out SerialPicker, product Serials tab), printable stock-out slip (PrintSlipModal, SO-XXXXX numbering, window.print()).
+## 2026-04-04 | CLAUDE_CODE | Phase 8 Batch 6 complete — 5-tab reports page (stock movements, low stock, inventory snapshot, product history, admin audit trail; CSV export per tab), MinIO file attachments for POs and stock-in delivery receipts.
+## 2026-04-04 | CLAUDE_CODE | Phase 8 Batch 7 complete — dashboard low-stock banner enhanced, product history date/type filters + pagination, login AuditLog events, BullMQ low-stock notification workers + nodemailer email sender. bullmq added as direct dep of apps/web. typecheck + lint clean.
 # ---
