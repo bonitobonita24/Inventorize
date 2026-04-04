@@ -261,13 +261,35 @@ export const platformRouter = createTRPCRouter({
 
   platformMetrics: superAdminProcedure
     .query(async () => {
-      const [totalTenants, activeTenants, totalUsers, totalProducts] = await Promise.all([
+      const [totalTenants, activeTenants, totalUsers, totalProducts, tenantUserBreakdown] = await Promise.all([
         platformPrisma.tenant.count(),
         platformPrisma.tenant.count({ where: { status: 'active' } }),
         platformPrisma.user.count(),
         platformPrisma.product.count(),
+        platformPrisma.tenant.findMany({
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            status: true,
+            _count: { select: { users: { where: { isActive: true } } } },
+          },
+          orderBy: { name: 'asc' },
+        }),
       ]);
-      return { totalTenants, activeTenants, totalUsers, totalProducts };
+      return {
+        totalTenants,
+        activeTenants,
+        totalUsers,
+        totalProducts,
+        tenantUserBreakdown: tenantUserBreakdown.map((t) => ({
+          id: t.id,
+          name: t.name,
+          slug: t.slug,
+          status: t.status,
+          activeUsers: t._count.users,
+        })),
+      };
     }),
 
   platformAuditLogs: superAdminProcedure

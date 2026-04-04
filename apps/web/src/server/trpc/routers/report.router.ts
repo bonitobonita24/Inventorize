@@ -2,6 +2,8 @@
 
 import { z } from 'zod';
 import { createTRPCRouter, tenantProcedure } from '../trpc';
+import { requireRole } from '../middleware/rbac';
+import { UserRole } from '@inventorize/shared/enums';
 import { prisma } from '@inventorize/db';
 import { withTenantContext } from '@inventorize/db';
 
@@ -138,6 +140,57 @@ export const reportRouter = createTRPCRouter({
           return { totalProducts, activeProducts, lowStockProducts, inventoryValue };
         },
       );
+    }),
+
+  // Log a CSV export event to the immutable audit trail
+  logExport: tenantProcedure
+    .input(
+      z.object({
+        reportType: z.string().min(1).max(100),
+        filters: z.record(z.unknown()).optional(),
+      }).strict(),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const tenantId = ctx.tenantId!;
+      const userId = ctx.userId!;
+      return withTenantContext({ tenantId, userId }, async () => {
+        await prisma.auditLog.create({
+          data: {
+            tenantId,
+            actorUserId: userId,
+            actionType: 'EXPORT',
+            entityType: 'Report',
+            entityId: input.reportType,
+            afterStateJson: input.filters ?? {},
+          },
+        });
+        return { success: true };
+      });
+    }),
+
+  // Period-based stock movement counts for dashboard KPI cards
+  movementCounts: tenantProcedure
+    .input(
+      z.object({
+        days: z.number().int().min(1).max(365).default(30),
+      }).strict(),
+    )
+    .query(async ({ ctx, input }) => {
+      const tenantId = ctx.tenantId!;
+      const userId = ctx.userId!;
+      return withTenantContext({ tenantId, userId }, async () => {
+        const since = new Date();
+        since.setDate(since.getDate() - input.days);
+        const [stockInCount, stockOutCount] = await Promise.all([
+          prisma.stockMovementLog.count({
+            where: { tenantId, movementType: 'stock_in', performedAt: { gte: since } },
+          }),
+          prisma.stockMovementLog.count({
+            where: { tenantId, movementType: 'stock_out', performedAt: { gte: since } },
+          }),
+        ]);
+        return { stockInCount, stockOutCount, days: input.days };
+      });
     }),
 
   // Full inventory snapshot — all active products with current quantity and value

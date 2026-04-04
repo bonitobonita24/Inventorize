@@ -22,6 +22,7 @@ export default function DashboardPage() {
   const { data: summary, isLoading: summaryLoading } = trpc.report.inventorySummary.useQuery();
   const { data: movements } = trpc.report.stockMovements.useQuery({ page: 1, limit: 200 });
   const { data: lowStock } = trpc.report.lowStock.useQuery({ page: 1, limit: 10 });
+  const { data: movementCounts } = trpc.report.movementCounts.useQuery({ days: 30 });
 
   if (summaryLoading) {
     return <div className="p-4">Loading dashboard...</div>;
@@ -32,6 +33,8 @@ export default function DashboardPage() {
     { label: 'Active Products', value: summary?.activeProducts ?? 0, color: 'text-foreground' },
     { label: 'Low Stock Items', value: summary?.lowStockProducts ?? 0, color: (summary?.lowStockProducts ?? 0) > 0 ? 'text-red-600' : 'text-foreground' },
     { label: 'Inventory Value', value: `$${(summary?.inventoryValue ?? 0).toLocaleString()}`, color: 'text-foreground' },
+    { label: 'Stock In (30d)', value: movementCounts?.stockInCount ?? 0, color: 'text-green-600' },
+    { label: 'Stock Out (30d)', value: movementCounts?.stockOutCount ?? 0, color: 'text-red-600' },
   ];
 
   // Aggregate movements by date for the chart
@@ -64,7 +67,7 @@ export default function DashboardPage() {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Dashboard</h1>
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
         {cards.map((card) => (
           <div key={card.label} className="rounded-lg border border-border p-4">
             <p className="text-sm text-muted-foreground">{card.label}</p>

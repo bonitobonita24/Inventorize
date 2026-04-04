@@ -95,10 +95,22 @@ export default function ReportsPage() {
     { enabled: activeTab === 'auditTrail' && isAdmin },
   );
 
+  // ── Export audit logging ─────────────────────────────────────────────────
+
+  const logExport = trpc.report.logExport.useMutation();
+
   // ── Export helpers ────────────────────────────────────────────────────────
 
   const exportMovements = () => {
     if (movements?.items === undefined || movements.items.length === 0) return;
+    logExport.mutate({
+      reportType: 'stock_movements',
+      filters: {
+        ...(mvType.length > 0 ? { movementType: mvType } : {}),
+        ...(mvStart.length > 0 ? { startDate: mvStart } : {}),
+        ...(mvEnd.length > 0 ? { endDate: mvEnd } : {}),
+      },
+    });
     downloadCsv(
       movements.items.map((m) => ({
         date: new Date(m.performedAt).toLocaleString(),
@@ -136,6 +148,7 @@ export default function ReportsPage() {
 
   const exportLowStock = () => {
     if (lowStockItems.length === 0) return;
+    logExport.mutate({ reportType: 'low_stock' });
     downloadCsv(
       lowStockItems.map((p) => ({
         productCode: p.productCode,
@@ -159,6 +172,13 @@ export default function ReportsPage() {
 
   const exportInventory = () => {
     if (inventory?.items === undefined || inventory.items.length === 0) return;
+    logExport.mutate({
+      reportType: 'inventory_snapshot',
+      filters: {
+        ...(invSearch.length > 0 ? { search: invSearch } : {}),
+        ...(invCategory.length > 0 ? { category: invCategory } : {}),
+      },
+    });
     downloadCsv(
       inventory.items.map((p) => ({
         productCode: p.productCode,
