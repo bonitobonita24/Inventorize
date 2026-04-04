@@ -27,6 +27,7 @@ export default function StockInPage() {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [fetchingAttachmentId, setFetchingAttachmentId] = useState<string | null>(null);
+  const [deletingAttachmentId, setDeletingAttachmentId] = useState<string | null>(null);
 
   const { data, isLoading, refetch } = trpc.stockIn.list.useQuery({ page, limit: 50 });
   const { data: receivablePOs } = trpc.purchaseOrder.listReceivable.useQuery();
@@ -41,6 +42,17 @@ export default function StockInPage() {
       setFetchingAttachmentId(null);
     }
   }, [attachmentUrlQuery.data, fetchingAttachmentId]);
+
+  const deleteAttachmentMutation = trpc.stockIn.deleteAttachment.useMutation({
+    onSuccess: () => { setDeletingAttachmentId(null); void refetch(); },
+    onError: () => { setDeletingAttachmentId(null); },
+  });
+
+  const handleDeleteAttachment = (stockInId: string) => {
+    if (!window.confirm('Delete this receipt attachment? This cannot be undone.')) return;
+    setDeletingAttachmentId(stockInId);
+    deleteAttachmentMutation.mutate({ id: stockInId });
+  };
 
   const productSearch = trpc.product.list.useQuery(
     { page: 1, limit: 5, search: scanResult ?? '' },
@@ -439,14 +451,24 @@ export default function StockInPage() {
                   <td className="px-4 py-3">
                     {(stockIn as { attachmentUrl?: string | null }).attachmentUrl !== null &&
                      (stockIn as { attachmentUrl?: string | null }).attachmentUrl !== undefined ? (
-                      <button
-                        type="button"
-                        onClick={() => { setFetchingAttachmentId(stockIn.id); }}
-                        disabled={fetchingAttachmentId === stockIn.id}
-                        className="text-xs text-primary underline hover:no-underline disabled:opacity-50"
-                      >
-                        {fetchingAttachmentId === stockIn.id ? 'Loading…' : '⬇ View'}
-                      </button>
+                      <span className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => { setFetchingAttachmentId(stockIn.id); }}
+                          disabled={fetchingAttachmentId === stockIn.id}
+                          className="text-xs text-primary underline hover:no-underline disabled:opacity-50"
+                        >
+                          {fetchingAttachmentId === stockIn.id ? 'Loading…' : '⬇ View'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { handleDeleteAttachment(stockIn.id); }}
+                          disabled={deletingAttachmentId === stockIn.id}
+                          className="text-xs text-destructive hover:underline disabled:opacity-50"
+                        >
+                          {deletingAttachmentId === stockIn.id ? 'Deleting…' : '✕'}
+                        </button>
+                      </span>
                     ) : (
                       <span className="text-xs text-muted-foreground">—</span>
                     )}

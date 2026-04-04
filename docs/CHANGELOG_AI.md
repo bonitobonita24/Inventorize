@@ -3,6 +3,21 @@
 # Include agent attribution in every entry.
 # ---
 
+## 2026-04-04 — Phase 8 Batch 9 — Atomic Onboarding, Attachment Delete, Serial Status Guards
+- Agent:               CLAUDE_CODE
+- Why:                 Batch 9 — wrap platform mutations in $transaction for atomicity, add file attachment deletion for PO and stock-in, enforce in_stock serial status before adjustment
+- Files added:         none
+- Files modified:      apps/web/src/server/trpc/routers/platform.router.ts (createTenant, createTenantAdmin, updateTenantStatus wrapped in platformPrisma.$transaction)
+                       apps/web/src/server/trpc/routers/purchase-order.router.ts (deleteAttachment procedure + deleteFile import)
+                       apps/web/src/server/trpc/routers/stock-in.router.ts (deleteAttachment procedure + deleteFile import)
+                       apps/web/src/server/trpc/routers/stock-adjustment.router.ts (serial status check: only in_stock serials can be adjusted)
+                       apps/web/src/app/[tenantSlug]/purchase-orders/[id]/page.tsx (delete attachment button next to download)
+                       apps/web/src/app/[tenantSlug]/stock-in/page.tsx (delete attachment button in receipt column)
+- Files deleted:       none
+- Schema/migrations:   none
+- Errors encountered:  none
+- Errors resolved:     none
+
 ## 2026-04-04 — Phase 8 Batch 8 — Tenant Onboarding, Suspend/Reactivate, Serial Adjustments, Welcome Emails
 - Agent:               CLAUDE_CODE
 - Why:                 Batch 8 — complete tenant onboarding flow (create tenant + first admin + welcome email), suspend/reactivate with login block, duplicate productCode/barcodeValue enforcement, serial number tracking in stock adjustments, welcome email on user creation

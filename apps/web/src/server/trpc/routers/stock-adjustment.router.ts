@@ -78,7 +78,7 @@ export const stockAdjustmentRouter = createTRPCRouter({
                 });
               }
 
-              // Validate serial number if provided
+              // Validate serial number if provided — must be in_stock
               if (item.serialNumberId !== undefined) {
                 const serial = await tx.serialNumber.findFirst({
                   where: { id: item.serialNumberId, productId: item.productId, tenantId },
@@ -87,6 +87,12 @@ export const stockAdjustmentRouter = createTRPCRouter({
                   throw new TRPCError({
                     code: 'BAD_REQUEST',
                     message: `Serial number not found for product ${product.name}.`,
+                  });
+                }
+                if (serial.status !== 'in_stock') {
+                  throw new TRPCError({
+                    code: 'BAD_REQUEST',
+                    message: `Serial number is "${serial.status}" — only in_stock serials can be adjusted.`,
                   });
                 }
               }

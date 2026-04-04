@@ -7,7 +7,7 @@ import { requireRole } from '../middleware/rbac';
 import { UserRole } from '@inventorize/shared/enums';
 import { prisma } from '@inventorize/db';
 import { withTenantContext } from '@inventorize/db';
-import { getDownloadUrl } from '@inventorize/storage';
+import { getDownloadUrl, deleteFile } from '@inventorize/storage';
 
 export const purchaseOrderRouter = createTRPCRouter({
   list: tenantProcedure
@@ -142,6 +142,29 @@ export const purchaseOrderRouter = createTRPCRouter({
           throw new TRPCError({ code: 'NOT_FOUND', message: 'Resource not found.' });
         }
         return { url: await getDownloadUrl(po.attachmentUrl, tenantId) };
+      });
+    }),
+
+  deleteAttachment: tenantProcedure
+    .use(requireRole(UserRole.ADMIN, UserRole.PURCHASING_STAFF))
+    .input(z.object({ id: z.string().cuid() }).strict())
+    .mutation(async ({ ctx, input }) => {
+      const tenantId = ctx.tenantId!;
+      const userId = ctx.userId!;
+      return withTenantContext({ tenantId, userId }, async () => {
+        const po = await prisma.purchaseOrder.findFirst({
+          where: { id: input.id, tenantId },
+          select: { attachmentUrl: true },
+        });
+        if (po === null || po.attachmentUrl === null) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'Resource not found.' });
+        }
+        await deleteFile(po.attachmentUrl, tenantId);
+        await prisma.purchaseOrder.update({
+          where: { id: input.id },
+          data: { attachmentUrl: null },
+        });
+        return { success: true };
       });
     }),
 

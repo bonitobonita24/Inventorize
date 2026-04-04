@@ -39,6 +39,7 @@ export default function PurchaseOrderDetailPage() {
 
   const [statusError, setStatusError] = useState('');
   const [attachmentLoading, setAttachmentLoading] = useState(false);
+  const [deleteAttachmentLoading, setDeleteAttachmentLoading] = useState(false);
 
   const { data: po, isLoading, refetch } = trpc.purchaseOrder.byId.useQuery(
     { id: id ?? '' },
@@ -60,6 +61,18 @@ export default function PurchaseOrderDetailPage() {
     } finally {
       setAttachmentLoading(false);
     }
+  };
+
+  const deleteAttachmentMutation = trpc.purchaseOrder.deleteAttachment.useMutation({
+    onSuccess: () => { void refetch(); setDeleteAttachmentLoading(false); },
+    onError: () => { setDeleteAttachmentLoading(false); },
+  });
+
+  const handleDeleteAttachment = () => {
+    if (id === undefined) return;
+    if (!window.confirm('Delete this attachment? This cannot be undone.')) return;
+    setDeleteAttachmentLoading(true);
+    deleteAttachmentMutation.mutate({ id });
   };
 
   const updateStatus = trpc.purchaseOrder.updateStatus.useMutation({
@@ -142,14 +155,24 @@ export default function PurchaseOrderDetailPage() {
        (po as { attachmentUrl?: string | null }).attachmentUrl !== undefined && (
         <div className="rounded-lg border border-border p-4">
           <p className="mb-2 text-xs font-medium text-muted-foreground">Attachment</p>
-          <button
-            type="button"
-            onClick={() => { void handleDownloadAttachment(); }}
-            disabled={attachmentLoading}
-            className="rounded-md border border-border px-3 py-1.5 text-sm font-medium hover:bg-muted disabled:opacity-50"
-          >
-            {attachmentLoading ? 'Loading…' : '⬇ Download Attachment'}
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => { void handleDownloadAttachment(); }}
+              disabled={attachmentLoading}
+              className="rounded-md border border-border px-3 py-1.5 text-sm font-medium hover:bg-muted disabled:opacity-50"
+            >
+              {attachmentLoading ? 'Loading…' : '⬇ Download Attachment'}
+            </button>
+            <button
+              type="button"
+              onClick={handleDeleteAttachment}
+              disabled={deleteAttachmentLoading}
+              className="rounded-md border border-destructive px-3 py-1.5 text-sm font-medium text-destructive hover:bg-destructive hover:text-destructive-foreground disabled:opacity-50"
+            >
+              {deleteAttachmentLoading ? 'Deleting…' : '✕ Delete'}
+            </button>
+          </div>
         </div>
       )}
 

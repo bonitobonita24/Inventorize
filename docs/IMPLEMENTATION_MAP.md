@@ -5,7 +5,7 @@
 ## Project Info
 - App Name:     Inventorize
 - App Slug:     inventorize
-- Phase:        Phase 8 — Iterative Buildout (Batches 1–8 complete)
+- Phase:        Phase 8 — Iterative Buildout (Batches 1–9 complete)
 - Last Updated: 2026-04-04
 
 ---
@@ -92,14 +92,14 @@
 - [x] apps/web/src/server/trpc/routers/ — 10 routers:
   - [x] product.router.ts (CRUD, list with cursor pagination, stock history) ✦ Batch 5: serialsByProductId query (paginated, status filter) ✦ Batch 8: duplicate productCode + barcodeValue enforcement (create + update)
   - [x] supplier.router.ts (CRUD, list)
-  - [x] purchase-order.router.ts (CRUD, status transitions, list, listReceivable) ✦ Batch 4: listReceivable for stock-in PO selector; byId includes stockIns ✦ Batch 5: listReceivable items include serialTrackingEnabled ✦ Batch 6: attachmentUrl in create; getAttachmentUrl presigned download
-  - [x] stock-in.router.ts (create with serial numbers, list) ✦ Batch 4: create propagates receivedQty to PurchaseOrderItem + auto-updates PO status ✦ Batch 6: getAttachmentUrl presigned download
+  - [x] purchase-order.router.ts (CRUD, status transitions, list, listReceivable) ✦ Batch 4: listReceivable for stock-in PO selector; byId includes stockIns ✦ Batch 5: listReceivable items include serialTrackingEnabled ✦ Batch 6: attachmentUrl in create; getAttachmentUrl presigned download ✦ Batch 9: deleteAttachment procedure (MinIO delete + null attachmentUrl)
+  - [x] stock-in.router.ts (create with serial numbers, list) ✦ Batch 4: create propagates receivedQty to PurchaseOrderItem + auto-updates PO status ✦ Batch 6: getAttachmentUrl presigned download ✦ Batch 9: deleteAttachment procedure (MinIO delete + null attachmentUrl)
   - [x] stock-out.router.ts (create with slip number, list) ✦ Batch 5: serialsForProduct query; create validates serials + marks issued; list includes releasedByUser + item product details
-  - [x] stock-adjustment.router.ts (create, list) ✦ Batch 8: serialNumberId input, serial validation, serial status update, serialNumberId in movement log
+  - [x] stock-adjustment.router.ts (create, list) ✦ Batch 8: serialNumberId input, serial validation, serial status update, serialNumberId in movement log ✦ Batch 9: in_stock status guard — rejects issued/adjusted serials
   - [x] user.router.ts (CRUD, role assignment, impersonation) ✦ Batch 8: welcome email enqueue via BullMQ on user creation
   - [x] audit-log.router.ts (list with filters)
   - [x] report.router.ts (dashboard KPIs, low stock, movement history, valuation) ✦ Batch 6: inventorySnapshot + inventorySummary added
-  - [x] platform.router.ts (superadmin: tenant CRUD, metrics, audit — separate Prisma instance) ✦ Batch 8: removed invalid isActive from tenant create
+  - [x] platform.router.ts (superadmin: tenant CRUD, metrics, audit — separate Prisma instance) ✦ Batch 8: removed invalid isActive from tenant create ✦ Batch 9: atomic $transaction on createTenant, createTenantAdmin, updateTenantStatus (audit log rolls back on failure)
 - [x] apps/web/src/app/ — Pages:
   - [x] layout.tsx (root layout with TRPCProvider)
   - [x] login/page.tsx
@@ -110,8 +110,8 @@
   - [x] [tenantSlug]/dashboard/page.tsx ✦ Batch 1: recharts KPI charts (bar, line, pie, area) ✦ Batch 7: low-stock banner: item count, "need attention" headline, "View full report" link, "and X more" overflow
   - [x] [tenantSlug]/products/page.tsx + [id]/page.tsx + [id]/history/page.tsx ✦ Batch 3: create/edit form (admin-only), real-time price preview, serial tracking toggle, Decimal conversion, deactivate/activate ✦ Batch 5: [id]/page.tsx has Serials tab (serialsByProductId, status filter, pagination, colored badges) ✦ Batch 7: [id]/history/page.tsx — movementType select, startDate/endDate date pickers, clear button, pagination, Notes column
   - [x] [tenantSlug]/suppliers/page.tsx ✦ Batch 2: create/edit form, activate/deactivate toggle
-  - [x] [tenantSlug]/purchase-orders/page.tsx + [id]/page.tsx ✦ Batch 3: create form with dynamic line items, supplier dropdown, auto-fill cost, order total, supplier name in list ✦ Batch 4: [id]/page.tsx shows linked Receipts section ✦ Batch 6: file attachment upload on create; download button on detail
-  - [x] [tenantSlug]/stock-in/page.tsx ✦ Batch 1: BarcodeScanner + create form ✦ Batch 4: PO dropdown selector, auto-populate remaining items ✦ Batch 5: serial entry panel ✦ Batch 6: delivery receipt upload; Receipt column with presigned download in list
+  - [x] [tenantSlug]/purchase-orders/page.tsx + [id]/page.tsx ✦ Batch 3: create form with dynamic line items, supplier dropdown, auto-fill cost, order total, supplier name in list ✦ Batch 4: [id]/page.tsx shows linked Receipts section ✦ Batch 6: file attachment upload on create; download button on detail ✦ Batch 9: [id]/page.tsx delete attachment button with confirm dialog
+  - [x] [tenantSlug]/stock-in/page.tsx ✦ Batch 1: BarcodeScanner + create form ✦ Batch 4: PO dropdown selector, auto-populate remaining items ✦ Batch 5: serial entry panel ✦ Batch 6: delivery receipt upload; Receipt column with presigned download in list ✦ Batch 9: delete attachment button (✕) in receipt column with confirm dialog
   - [x] [tenantSlug]/stock-out/page.tsx ✦ Batch 1: BarcodeScanner + create form ✦ Batch 5: SerialPicker (checkbox list of in_stock serials), PrintSlipModal (SO-XXXXX slip, window.print()), serialsValid gate
   - [x] [tenantSlug]/adjustments/page.tsx ✦ Batch 2: create form with reason enum, BarcodeScanner, delta preview ✦ Batch 8: SerialPicker for serial-tracked products, serial column, serialNumberId in payload
   - [x] [tenantSlug]/audit-logs/page.tsx ✦ Batch 2: entity type + date range filters, pagination, action badges

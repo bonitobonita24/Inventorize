@@ -104,28 +104,30 @@ export const platformRouter = createTRPCRouter({
         });
       }
 
-      const tenant = await platformPrisma.tenant.create({
-        data: {
-          name: input.name,
-          slug: input.slug,
-          contactEmail: input.contactEmail,
-          status: 'active',
-        },
-      });
+      // Atomic: tenant + audit log in one transaction
+      return platformPrisma.$transaction(async (tx) => {
+        const tenant = await tx.tenant.create({
+          data: {
+            name: input.name,
+            slug: input.slug,
+            contactEmail: input.contactEmail,
+            status: 'active',
+          },
+        });
 
-      // PLATFORM: audit log
-      await platformPrisma.auditLog.create({
-        data: {
-          tenantId: tenant.id,
-          actorUserId: ctx.userId!,
-          actionType: 'PLATFORM:CREATE_TENANT',
-          entityType: 'Tenant',
-          entityId: tenant.id,
-          afterStateJson: { name: tenant.name, slug: tenant.slug, contactEmail: input.contactEmail },
-        },
-      });
+        await tx.auditLog.create({
+          data: {
+            tenantId: tenant.id,
+            actorUserId: ctx.userId!,
+            actionType: 'PLATFORM:CREATE_TENANT',
+            entityType: 'Tenant',
+            entityId: tenant.id,
+            afterStateJson: { name: tenant.name, slug: tenant.slug, contactEmail: input.contactEmail },
+          },
+        });
 
-      return tenant;
+        return tenant;
+      });
     }),
 
   createTenantAdmin: superAdminProcedure
@@ -160,38 +162,43 @@ export const platformRouter = createTRPCRouter({
       }
 
       const hashedPassword = await bcrypt.hash(input.password, 12);
-      const user = await platformPrisma.user.create({
-        data: {
-          tenantId: input.tenantId,
-          name: input.name,
-          email: input.email,
-          hashedPassword,
-          role: 'admin',
-          isActive: true,
-        },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          role: true,
-          isActive: true,
-          createdAt: true,
-        },
+
+      // Atomic: user + audit log in one transaction
+      const user = await platformPrisma.$transaction(async (tx) => {
+        const created = await tx.user.create({
+          data: {
+            tenantId: input.tenantId,
+            name: input.name,
+            email: input.email,
+            hashedPassword,
+            role: 'admin',
+            isActive: true,
+          },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+            isActive: true,
+            createdAt: true,
+          },
+        });
+
+        await tx.auditLog.create({
+          data: {
+            tenantId: input.tenantId,
+            actorUserId: ctx.userId!,
+            actionType: 'PLATFORM:CREATE_TENANT_ADMIN',
+            entityType: 'User',
+            entityId: created.id,
+            afterStateJson: { name: created.name, email: created.email, role: 'admin', tenantId: input.tenantId },
+          },
+        });
+
+        return created;
       });
 
-      // PLATFORM: audit log
-      await platformPrisma.auditLog.create({
-        data: {
-          tenantId: input.tenantId,
-          actorUserId: ctx.userId!,
-          actionType: 'PLATFORM:CREATE_TENANT_ADMIN',
-          entityType: 'User',
-          entityId: user.id,
-          afterStateJson: { name: user.name, email: user.email, role: 'admin', tenantId: input.tenantId },
-        },
-      });
-
-      // Enqueue welcome email
+      // Enqueue welcome email (outside transaction — non-blocking)
       const baseUrl = process.env['NEXTAUTH_URL'] ?? 'http://localhost:3000';
       const loginUrl = `${baseUrl}/${tenant.slug}/dashboard`;
       try {
@@ -229,25 +236,27 @@ export const platformRouter = createTRPCRouter({
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Resource not found.' });
       }
 
-      const updated = await platformPrisma.tenant.update({
-        where: { id: input.id },
-        data: { status: input.status },
-      });
+      // Atomic: status update + audit log in one transaction
+      return platformPrisma.$transaction(async (tx) => {
+        const updated = await tx.tenant.update({
+          where: { id: input.id },
+          data: { status: input.status },
+        });
 
-      // PLATFORM: audit log for cross-tenant operations
-      await platformPrisma.auditLog.create({
-        data: {
-          tenantId: input.id,
-          actorUserId: ctx.userId!,
-          actionType: 'PLATFORM:UPDATE_TENANT_STATUS',
-          entityType: 'Tenant',
-          entityId: input.id,
-          beforeStateJson: { status: tenant.status },
-          afterStateJson: { status: input.status },
-        },
-      });
+        await tx.auditLog.create({
+          data: {
+            tenantId: input.id,
+            actorUserId: ctx.userId!,
+            actionType: 'PLATFORM:UPDATE_TENANT_STATUS',
+            entityType: 'Tenant',
+            entityId: input.id,
+            beforeStateJson: { status: tenant.status },
+            afterStateJson: { status: input.status },
+          },
+        });
 
-      return updated;
+        return updated;
+      });
     }),
 
   platformMetrics: superAdminProcedure
