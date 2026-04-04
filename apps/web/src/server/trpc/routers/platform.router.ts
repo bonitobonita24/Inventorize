@@ -7,8 +7,19 @@ import { createTRPCRouter, protectedProcedure } from '../trpc';
 import { requireRole } from '../middleware/rbac';
 import { UserRole } from '@inventorize/shared/enums';
 import { platformPrisma } from '@inventorize/db';
+import bcrypt from 'bcryptjs';
+import { getEmailNotificationsQueue } from '@inventorize/jobs';
 
 const superAdminProcedure = protectedProcedure.use(requireRole(UserRole.SUPER_ADMIN));
+
+/** Convert a tenant name to a URL-safe slug (lowercase, special chars → hyphens). */
+function toSlug(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .substring(0, 60);
+}
 
 export const platformRouter = createTRPCRouter({
   listTenants: superAdminProcedure
@@ -60,6 +71,149 @@ export const platformRouter = createTRPCRouter({
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Resource not found.' });
       }
       return tenant;
+    }),
+
+  checkSlugAvailability: superAdminProcedure
+    .input(z.object({ slug: z.string().min(1).max(60) }).strict())
+    .query(async ({ input }) => {
+      const existing = await platformPrisma.tenant.findUnique({
+        where: { slug: input.slug },
+        select: { id: true },
+      });
+      return { available: existing === null };
+    }),
+
+  createTenant: superAdminProcedure
+    .input(
+      z.object({
+        name: z.string().min(1).max(200),
+        slug: z.string().min(1).max(60).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Slug must be lowercase alphanumeric with hyphens'),
+        contactEmail: z.string().email(),
+      }).strict(),
+    )
+    .mutation(async ({ ctx, input }) => {
+      // Check slug uniqueness
+      const existing = await platformPrisma.tenant.findUnique({
+        where: { slug: input.slug },
+        select: { id: true },
+      });
+      if (existing !== null) {
+        throw new TRPCError({
+          code: 'CONFLICT',
+          message: 'A tenant with this slug already exists.',
+        });
+      }
+
+      const tenant = await platformPrisma.tenant.create({
+        data: {
+          name: input.name,
+          slug: input.slug,
+          contactEmail: input.contactEmail,
+          status: 'active',
+        },
+      });
+
+      // PLATFORM: audit log
+      await platformPrisma.auditLog.create({
+        data: {
+          tenantId: tenant.id,
+          actorUserId: ctx.userId!,
+          actionType: 'PLATFORM:CREATE_TENANT',
+          entityType: 'Tenant',
+          entityId: tenant.id,
+          afterStateJson: { name: tenant.name, slug: tenant.slug, contactEmail: input.contactEmail },
+        },
+      });
+
+      return tenant;
+    }),
+
+  createTenantAdmin: superAdminProcedure
+    .input(
+      z.object({
+        tenantId: z.string().cuid(),
+        name: z.string().min(1).max(200),
+        email: z.string().email(),
+        password: z.string().min(8).max(128),
+      }).strict(),
+    )
+    .mutation(async ({ ctx, input }) => {
+      // Verify tenant exists
+      const tenant = await platformPrisma.tenant.findUnique({
+        where: { id: input.tenantId },
+        select: { id: true, name: true, slug: true },
+      });
+      if (tenant === null) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Resource not found.' });
+      }
+
+      // Check for duplicate email globally (users table is global)
+      const existingUser = await platformPrisma.user.findFirst({
+        where: { email: input.email },
+        select: { id: true },
+      });
+      if (existingUser !== null) {
+        throw new TRPCError({
+          code: 'CONFLICT',
+          message: 'A user with this email already exists.',
+        });
+      }
+
+      const hashedPassword = await bcrypt.hash(input.password, 12);
+      const user = await platformPrisma.user.create({
+        data: {
+          tenantId: input.tenantId,
+          name: input.name,
+          email: input.email,
+          hashedPassword,
+          role: 'admin',
+          isActive: true,
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          isActive: true,
+          createdAt: true,
+        },
+      });
+
+      // PLATFORM: audit log
+      await platformPrisma.auditLog.create({
+        data: {
+          tenantId: input.tenantId,
+          actorUserId: ctx.userId!,
+          actionType: 'PLATFORM:CREATE_TENANT_ADMIN',
+          entityType: 'User',
+          entityId: user.id,
+          afterStateJson: { name: user.name, email: user.email, role: 'admin', tenantId: input.tenantId },
+        },
+      });
+
+      // Enqueue welcome email
+      const baseUrl = process.env['NEXTAUTH_URL'] ?? 'http://localhost:3000';
+      const loginUrl = `${baseUrl}/${tenant.slug}/dashboard`;
+      try {
+        const queue = getEmailNotificationsQueue();
+        await queue.add('welcome-tenant-admin', {
+          tenantId: input.tenantId,
+          userId: user.id,
+          type: 'welcome',
+          recipientEmail: user.email,
+          recipientName: user.name,
+          subject: `Welcome to Inventorize — ${tenant.name}`,
+          templateData: {
+            tenantName: tenant.name,
+            loginUrl,
+          },
+        });
+      } catch {
+        // Non-blocking — email failure should not block tenant admin creation
+        console.error('[platform] Failed to enqueue welcome email for', user.email);
+      }
+
+      return user;
     }),
 
   updateTenantStatus: superAdminProcedure

@@ -9,6 +9,7 @@ import { prisma } from '@inventorize/db';
 import { withTenantContext } from '@inventorize/db';
 import type { Prisma } from '@inventorize/db';
 import bcrypt from 'bcryptjs';
+import { getEmailNotificationsQueue } from '@inventorize/jobs';
 
 export const userRouter = createTRPCRouter({
   list: tenantProcedure
@@ -90,7 +91,7 @@ export const userRouter = createTRPCRouter({
           }
 
           const hashedPassword = await bcrypt.hash(input.password, 12);
-          return prisma.user.create({
+          const user = await prisma.user.create({
             data: {
               tenantId,
               name: input.name,
@@ -108,6 +109,35 @@ export const userRouter = createTRPCRouter({
               createdAt: true,
             },
           });
+
+          // Enqueue welcome email (non-blocking)
+          const tenant = await prisma.tenant.findUnique({
+            where: { id: tenantId },
+            select: { name: true, slug: true },
+          });
+          if (tenant !== null) {
+            const baseUrl = process.env['NEXTAUTH_URL'] ?? 'http://localhost:3000';
+            const loginUrl = `${baseUrl}/${tenant.slug}/dashboard`;
+            try {
+              const queue = getEmailNotificationsQueue();
+              await queue.add('welcome-user', {
+                tenantId,
+                userId: user.id,
+                type: 'welcome',
+                recipientEmail: user.email,
+                recipientName: user.name,
+                subject: `Welcome to Inventorize — ${tenant.name}`,
+                templateData: {
+                  tenantName: tenant.name,
+                  loginUrl,
+                },
+              });
+            } catch {
+              console.error('[user] Failed to enqueue welcome email for', user.email);
+            }
+          }
+
+          return user;
         },
       );
     }),

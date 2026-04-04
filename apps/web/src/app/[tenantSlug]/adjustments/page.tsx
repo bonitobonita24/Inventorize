@@ -19,6 +19,38 @@ interface PendingItem {
   productName: string;
   quantityDelta: number;
   currentQuantity: number;
+  serialTrackingEnabled: boolean;
+  serialNumberId?: string | undefined;
+}
+
+function SerialPicker({ productId, selectedId, onSelect }: {
+  productId: string;
+  selectedId?: string | undefined;
+  onSelect: (serialId: string | undefined) => void;
+}) {
+  const { data, isLoading } = trpc.product.serialsByProductId.useQuery(
+    { productId, status: 'in_stock', page: 1, limit: 200 },
+  );
+
+  if (isLoading) return <span className="text-xs text-muted-foreground">Loading...</span>;
+
+  const serials = data?.items ?? [];
+  if (serials.length === 0) {
+    return <span className="text-xs text-muted-foreground">No serials in stock</span>;
+  }
+
+  return (
+    <select
+      value={selectedId ?? ''}
+      onChange={(e) => { onSelect(e.target.value.length > 0 ? e.target.value : undefined); }}
+      className="w-40 rounded border border-border bg-background px-2 py-1 text-xs"
+    >
+      <option value="">Select serial...</option>
+      {serials.map((s) => (
+        <option key={s.id} value={s.id}>{s.serialValue}</option>
+      ))}
+    </select>
+  );
 }
 
 export default function AdjustmentsPage() {
@@ -46,7 +78,7 @@ export default function AdjustmentsPage() {
     },
   });
 
-  const addItem = (product: { id: string; name: string; currentQuantity: number }) => {
+  const addItem = (product: { id: string; name: string; currentQuantity: number; serialTrackingEnabled: boolean }) => {
     setPendingItems((prev) => [
       ...prev,
       {
@@ -54,6 +86,7 @@ export default function AdjustmentsPage() {
         productName: product.name,
         quantityDelta: 0,
         currentQuantity: product.currentQuantity,
+        serialTrackingEnabled: product.serialTrackingEnabled,
       },
     ]);
     setScanResult(null);
@@ -71,9 +104,10 @@ export default function AdjustmentsPage() {
       adjustmentDate: new Date().toISOString(),
       reason,
       notes: notes.trim().length > 0 ? notes.trim() : null,
-      items: validItems.map(({ productId, quantityDelta }) => ({
+      items: validItems.map(({ productId, quantityDelta, serialNumberId }) => ({
         productId,
         quantityDelta,
+        ...(serialNumberId !== undefined ? { serialNumberId } : {}),
       })),
     });
   };
@@ -132,7 +166,7 @@ export default function AdjustmentsPage() {
                     <button
                       key={p.id}
                       type="button"
-                      onClick={() => { addItem({ id: p.id, name: p.name, currentQuantity: p.currentQuantity }); }}
+                      onClick={() => { addItem({ id: p.id, name: p.name, currentQuantity: p.currentQuantity, serialTrackingEnabled: p.serialTrackingEnabled }); }}
                       className="flex w-full items-center justify-between rounded px-3 py-2 text-left text-sm hover:bg-muted"
                     >
                       <span>
@@ -153,6 +187,7 @@ export default function AdjustmentsPage() {
                 <thead>
                   <tr className="border-b border-border bg-muted/50">
                     <th className="px-4 py-2 text-left font-medium">Product</th>
+                    <th className="px-4 py-2 text-left font-medium">Serial #</th>
                     <th className="px-4 py-2 text-right font-medium">Current Qty</th>
                     <th className="px-4 py-2 text-right font-medium">Delta (+/-)</th>
                     <th className="px-4 py-2 text-right font-medium">Result</th>
@@ -166,6 +201,21 @@ export default function AdjustmentsPage() {
                     return (
                       <tr key={`${item.productId}-${i}`} className="border-b border-border">
                         <td className="px-4 py-2">{item.productName}</td>
+                        <td className="px-4 py-2">
+                          {item.serialTrackingEnabled ? (
+                            <SerialPicker
+                              productId={item.productId}
+                              selectedId={item.serialNumberId}
+                              onSelect={(serialId) => {
+                                setPendingItems((prev) =>
+                                  prev.map((it, idx) => (idx === i ? { ...it, serialNumberId: serialId } : it)),
+                                );
+                              }}
+                            />
+                          ) : (
+                            <span className="text-xs text-muted-foreground">N/A</span>
+                          )}
+                        </td>
                         <td className="px-4 py-2 text-right text-muted-foreground">{item.currentQuantity}</td>
                         <td className="px-4 py-2 text-right">
                           <input

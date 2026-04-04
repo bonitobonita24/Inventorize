@@ -3,6 +3,22 @@
 # Include agent attribution in every entry.
 # ---
 
+## 2026-04-04 — Phase 8 Batch 8 — Tenant Onboarding, Suspend/Reactivate, Serial Adjustments, Welcome Emails
+- Agent:               CLAUDE_CODE
+- Why:                 Batch 8 — complete tenant onboarding flow (create tenant + first admin + welcome email), suspend/reactivate with login block, duplicate productCode/barcodeValue enforcement, serial number tracking in stock adjustments, welcome email on user creation
+- Files added:         none
+- Files modified:      apps/web/src/server/trpc/routers/platform.router.ts (removed invalid isActive field from tenant create)
+                       apps/web/src/server/auth/index.ts (block login for suspended tenant users)
+                       apps/web/src/server/trpc/routers/product.router.ts (duplicate productCode + barcodeValue enforcement on create and update with CONFLICT errors)
+                       apps/web/src/server/trpc/routers/user.router.ts (welcome email enqueue via BullMQ after user creation)
+                       apps/web/src/server/trpc/routers/stock-adjustment.router.ts (serialNumberId input, serial validation, serial status update to 'adjusted', serialNumberId in movement log)
+                       apps/web/src/app/platform/tenants/page.tsx (full rewrite: create tenant form with slug auto-gen + availability check, create first admin form, suspend/reactivate with confirmation dialog, search/filter, pagination)
+                       apps/web/src/app/[tenantSlug]/adjustments/page.tsx (SerialPicker component for serial-tracked products, serial column in pending items table, serialNumberId in mutation payload)
+- Files deleted:       none
+- Schema/migrations:   none (all fields already existed in schema)
+- Errors encountered:  exactOptionalPropertyTypes conflict on SerialPicker selectedId prop; isActive not in Tenant schema
+- Errors resolved:     Added `| undefined` to optional prop types; removed isActive from tenant create data
+
 ## 2026-04-04 — Phase 8 Batch 7 — Dashboard Banner, History Filters, Login Audit, Low-Stock Notifications
 - Agent:               CLAUDE_CODE
 - Why:                 Batch 7 — enhanced dashboard alert banner, product history date/type filters, login AuditLog events, BullMQ low-stock check + email notification workers

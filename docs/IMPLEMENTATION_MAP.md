@@ -5,7 +5,7 @@
 ## Project Info
 - App Name:     Inventorize
 - App Slug:     inventorize
-- Phase:        Phase 8 — Iterative Buildout (Batches 1–7 complete)
+- Phase:        Phase 8 — Iterative Buildout (Batches 1–8 complete)
 - Last Updated: 2026-04-04
 
 ---
@@ -19,7 +19,7 @@
 - [x] Phase 5: Validation (all 9 commands pass)
 - [x] Phase 6: Docker Startup
 - [x] Phase 7: Feature Updates (via Phase 8 batches)
-- [ ] Phase 8: Iterative Buildout (Batches 1–7 of N complete)
+- [ ] Phase 8: Iterative Buildout (Batches 1–8 of N complete)
 
 ---
 
@@ -78,7 +78,7 @@
 - [x] apps/web/postcss.config.js + tailwind.config.ts
 - [x] apps/web/src/env.ts (Zod-validated env vars at startup)
 - [x] apps/web/src/middleware.ts (tenant resolution from URL path, auth guard, session cross-check)
-- [x] apps/web/src/server/auth/index.ts (Auth.js v5 Credentials provider, bcrypt, JWT + session callbacks) ✦ Batch 7: LOGIN AuditLog event via platformPrisma.$transaction
+- [x] apps/web/src/server/auth/index.ts (Auth.js v5 Credentials provider, bcrypt, JWT + session callbacks) ✦ Batch 7: LOGIN AuditLog event via platformPrisma.$transaction ✦ Batch 8: block login for suspended tenant users
 - [x] apps/web/src/instrumentation.ts ✦ Batch 7: Next.js register() hook — starts BullMQ workers on nodejs runtime init
 - [x] apps/web/src/server/lib/email.ts ✦ Batch 7: nodemailer SMTP sender (MailHog dev / SMTP prod)
 - [x] apps/web/src/server/workers/email-processor.ts ✦ Batch 7: low_stock_report HTML email + welcome email
@@ -90,16 +90,16 @@
 - [x] apps/web/src/server/trpc/middleware/rbac.ts (L3 RBAC role guard)
 - [x] apps/web/src/server/trpc/middleware/tenant.ts (L1 tenant scope enforcement)
 - [x] apps/web/src/server/trpc/routers/ — 10 routers:
-  - [x] product.router.ts (CRUD, list with cursor pagination, stock history) ✦ Batch 5: serialsByProductId query (paginated, status filter)
+  - [x] product.router.ts (CRUD, list with cursor pagination, stock history) ✦ Batch 5: serialsByProductId query (paginated, status filter) ✦ Batch 8: duplicate productCode + barcodeValue enforcement (create + update)
   - [x] supplier.router.ts (CRUD, list)
   - [x] purchase-order.router.ts (CRUD, status transitions, list, listReceivable) ✦ Batch 4: listReceivable for stock-in PO selector; byId includes stockIns ✦ Batch 5: listReceivable items include serialTrackingEnabled ✦ Batch 6: attachmentUrl in create; getAttachmentUrl presigned download
   - [x] stock-in.router.ts (create with serial numbers, list) ✦ Batch 4: create propagates receivedQty to PurchaseOrderItem + auto-updates PO status ✦ Batch 6: getAttachmentUrl presigned download
   - [x] stock-out.router.ts (create with slip number, list) ✦ Batch 5: serialsForProduct query; create validates serials + marks issued; list includes releasedByUser + item product details
-  - [x] stock-adjustment.router.ts (create, list)
-  - [x] user.router.ts (CRUD, role assignment, impersonation)
+  - [x] stock-adjustment.router.ts (create, list) ✦ Batch 8: serialNumberId input, serial validation, serial status update, serialNumberId in movement log
+  - [x] user.router.ts (CRUD, role assignment, impersonation) ✦ Batch 8: welcome email enqueue via BullMQ on user creation
   - [x] audit-log.router.ts (list with filters)
   - [x] report.router.ts (dashboard KPIs, low stock, movement history, valuation) ✦ Batch 6: inventorySnapshot + inventorySummary added
-  - [x] platform.router.ts (superadmin: tenant CRUD, metrics, audit — separate Prisma instance)
+  - [x] platform.router.ts (superadmin: tenant CRUD, metrics, audit — separate Prisma instance) ✦ Batch 8: removed invalid isActive from tenant create
 - [x] apps/web/src/app/ — Pages:
   - [x] layout.tsx (root layout with TRPCProvider)
   - [x] login/page.tsx
@@ -113,12 +113,12 @@
   - [x] [tenantSlug]/purchase-orders/page.tsx + [id]/page.tsx ✦ Batch 3: create form with dynamic line items, supplier dropdown, auto-fill cost, order total, supplier name in list ✦ Batch 4: [id]/page.tsx shows linked Receipts section ✦ Batch 6: file attachment upload on create; download button on detail
   - [x] [tenantSlug]/stock-in/page.tsx ✦ Batch 1: BarcodeScanner + create form ✦ Batch 4: PO dropdown selector, auto-populate remaining items ✦ Batch 5: serial entry panel ✦ Batch 6: delivery receipt upload; Receipt column with presigned download in list
   - [x] [tenantSlug]/stock-out/page.tsx ✦ Batch 1: BarcodeScanner + create form ✦ Batch 5: SerialPicker (checkbox list of in_stock serials), PrintSlipModal (SO-XXXXX slip, window.print()), serialsValid gate
-  - [x] [tenantSlug]/adjustments/page.tsx ✦ Batch 2: create form with reason enum, BarcodeScanner, delta preview
+  - [x] [tenantSlug]/adjustments/page.tsx ✦ Batch 2: create form with reason enum, BarcodeScanner, delta preview ✦ Batch 8: SerialPicker for serial-tracked products, serial column, serialNumberId in payload
   - [x] [tenantSlug]/audit-logs/page.tsx ✦ Batch 2: entity type + date range filters, pagination, action badges
   - [x] [tenantSlug]/reports/page.tsx ✦ Batch 1: CSV export (movements + low stock) ✦ Batch 6: full rewrite — 5 tabs (stock movements, low stock, inventory snapshot, product history, audit trail); filters; CSV export per tab; admin-only audit trail tab
   - [x] apps/web/src/app/api/upload/route.ts ✦ Batch 6: non-tRPC multipart upload handler (manual auth + tenant guard + MinIO) — entityType: po-attachment | delivery-receipt
   - [x] [tenantSlug]/users/page.tsx ✦ Batch 3: create form, inline edit, disable/enable toggle, role assignment, search, pagination
-  - [x] platform/layout.tsx + tenants/page.tsx + audit-logs/page.tsx + metrics/page.tsx
+  - [x] platform/layout.tsx + tenants/page.tsx + audit-logs/page.tsx + metrics/page.tsx ✦ Batch 8: tenants/page.tsx full rewrite — create tenant + first admin onboarding, suspend/reactivate with dialog, search/filter, pagination
 - [x] apps/web/src/server/lib/rate-limit.ts (LRU-based, 4 tiers: public/auth/api/upload)
 - [x] apps/web/src/server/lib/sanitize.ts (DOMPurify — sanitize + sanitizePlainText)
 - [x] apps/web/src/lib/trpc.ts + trpc-provider.tsx (client-side tRPC hooks)

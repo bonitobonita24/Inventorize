@@ -1,6 +1,7 @@
 // Product router — tenant-scoped CRUD + search + history
 
 import { z } from 'zod';
+import { TRPCError } from '@trpc/server';
 import { createTRPCRouter, tenantProcedure } from '../trpc';
 import { requireRole } from '../middleware/rbac';
 import { UserRole } from '@inventorize/shared/enums';
@@ -124,6 +125,30 @@ export const productRouter = createTRPCRouter({
       return withTenantContext(
         { tenantId, userId },
         async () => {
+          // Check for duplicate productCode within tenant
+          const duplicateCode = await prisma.product.findFirst({
+            where: { tenantId, productCode: input.productCode },
+            select: { id: true },
+          });
+          if (duplicateCode !== null) {
+            throw new TRPCError({
+              code: 'CONFLICT',
+              message: 'A product with this code already exists in your organization.',
+            });
+          }
+
+          // Check for duplicate barcodeValue within tenant
+          const duplicateBarcode = await prisma.product.findFirst({
+            where: { tenantId, barcodeValue: input.barcodeValue },
+            select: { id: true },
+          });
+          if (duplicateBarcode !== null) {
+            throw new TRPCError({
+              code: 'CONFLICT',
+              message: 'A product with this barcode already exists in your organization.',
+            });
+          }
+
           const sellingPrice = input.supplierCost + (input.supplierCost * input.markupPercent / 100);
 
           return prisma.product.create({
@@ -208,6 +233,34 @@ export const productRouter = createTRPCRouter({
         async () => {
           const { id, ...data } = input;
 
+          // Check for duplicate productCode within tenant (excluding self)
+          if (data.productCode !== undefined) {
+            const duplicateCode = await prisma.product.findFirst({
+              where: { tenantId, productCode: data.productCode, id: { not: id } },
+              select: { id: true },
+            });
+            if (duplicateCode !== null) {
+              throw new TRPCError({
+                code: 'CONFLICT',
+                message: 'A product with this code already exists in your organization.',
+              });
+            }
+          }
+
+          // Check for duplicate barcodeValue within tenant (excluding self)
+          if (data.barcodeValue !== undefined) {
+            const duplicateBarcode = await prisma.product.findFirst({
+              where: { tenantId, barcodeValue: data.barcodeValue, id: { not: id } },
+              select: { id: true },
+            });
+            if (duplicateBarcode !== null) {
+              throw new TRPCError({
+                code: 'CONFLICT',
+                message: 'A product with this barcode already exists in your organization.',
+              });
+            }
+          }
+
           // Recalculate sellingPrice if pricing fields changed
           const updateData: Record<string, unknown> = { ...data };
           if (data.supplierCost !== undefined || data.markupPercent !== undefined) {
@@ -215,7 +268,7 @@ export const productRouter = createTRPCRouter({
               where: { id, tenantId },
             });
             if (existing === null) {
-              throw new Error('Resource not found.');
+              throw new TRPCError({ code: 'NOT_FOUND', message: 'Resource not found.' });
             }
             const cost = data.supplierCost ?? existing.supplierCost.toNumber();
             const markup = data.markupPercent ?? existing.markupPercent.toNumber();

@@ -29,6 +29,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           return null;
         }
 
+        // Block login for users in suspended tenants
+        if (user.tenant !== null && user.tenant.status === 'suspended') {
+          return null;
+        }
+
         const isValid = await compare(credentials.password, user.hashedPassword);
         if (!isValid) {
           return null;

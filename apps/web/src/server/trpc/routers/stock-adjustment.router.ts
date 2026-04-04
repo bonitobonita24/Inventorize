@@ -54,6 +54,7 @@ export const stockAdjustmentRouter = createTRPCRouter({
           z.object({
             productId: z.string().cuid(),
             quantityDelta: z.number().int(),
+            serialNumberId: z.string().cuid().optional(),
           }).strict(),
         ).min(1),
       }).strict(),
@@ -76,6 +77,19 @@ export const stockAdjustmentRouter = createTRPCRouter({
                   message: `Adjustment would result in negative stock for ${product.name}.`,
                 });
               }
+
+              // Validate serial number if provided
+              if (item.serialNumberId !== undefined) {
+                const serial = await tx.serialNumber.findFirst({
+                  where: { id: item.serialNumberId, productId: item.productId, tenantId },
+                });
+                if (serial === null) {
+                  throw new TRPCError({
+                    code: 'BAD_REQUEST',
+                    message: `Serial number not found for product ${product.name}.`,
+                  });
+                }
+              }
             }
 
             const adjustment = await tx.stockAdjustment.create({
@@ -85,7 +99,14 @@ export const stockAdjustmentRouter = createTRPCRouter({
                 reason: input.reason,
                 notes: input.notes,
                 createdByUserId: userId,
-                items: { create: input.items.map((item) => ({ ...item, tenantId })) },
+                items: {
+                  create: input.items.map((item) => ({
+                    productId: item.productId,
+                    quantityDelta: item.quantityDelta,
+                    tenantId,
+                    ...(item.serialNumberId !== undefined ? { serialNumberId: item.serialNumberId } : {}),
+                  })),
+                },
               },
             });
 
@@ -125,8 +146,17 @@ export const stockAdjustmentRouter = createTRPCRouter({
                   performedByUserId: userId,
                   notes: `${input.reason}: ${input.notes ?? 'No notes'}`,
                   performedAt: new Date(),
+                  ...(item.serialNumberId !== null ? { serialNumberId: item.serialNumberId } : {}),
                 },
               });
+
+              // Update serial number status if provided
+              if (item.serialNumberId !== null) {
+                await tx.serialNumber.update({
+                  where: { id: item.serialNumberId },
+                  data: { status: 'adjusted' },
+                });
+              }
             }
 
             return adjustment;
