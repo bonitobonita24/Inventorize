@@ -3,6 +3,22 @@
 # Include agent attribution in every entry.
 # ---
 
+## 2026-04-04 — Phase 8 Batch 6 — Reports Page + File Upload Attachments
+- Agent:               CLAUDE_CODE
+- Why:                 Batch 6 — 5-tab reports page with filters/CSV export + MinIO file attachments for POs and stock-in receipts
+- Files added:         apps/web/src/app/api/upload/route.ts (non-tRPC multipart upload handler with manual auth, tenant guard, MinIO uploadFile)
+- Files modified:      apps/web/src/app/[tenantSlug]/reports/page.tsx (rewrite: 5 tabs — stock movements, low stock, inventory snapshot, product history, admin audit trail; CSV export; role-gated audit tab)
+                       apps/web/src/app/[tenantSlug]/purchase-orders/page.tsx (async form submit: upload file to /api/upload before mutation; attachmentUrl state)
+                       apps/web/src/app/[tenantSlug]/purchase-orders/[id]/page.tsx (attachment download button: enabled:false query + refetch pattern → window.open)
+                       apps/web/src/app/[tenantSlug]/stock-in/page.tsx (delivery receipt upload in form; fetchingAttachmentId state + useEffect for list download; Receipt column in list table)
+                       apps/web/src/server/trpc/routers/purchase-order.router.ts (attachmentUrl field in create input/data; new getAttachmentUrl query)
+                       apps/web/src/server/trpc/routers/stock-in.router.ts (new getAttachmentUrl query)
+                       apps/web/src/server/trpc/routers/report.router.ts (inventorySnapshot + inventorySummary additions; removed unnecessary type assertions)
+- Files deleted:       none
+- Schema/migrations:   none (attachmentUrl already in PurchaseOrder and StockIn schema)
+- Errors encountered:  reports/page.tsx: audit log field used wrong names action/entity (correct: actionType/entityType); upload/route.ts: session.user.tenantId not typed; unnecessary ! assertions flagged by ESLint
+- Errors resolved:     Fixed field names; cast session.user via Record<string,unknown>; ran next lint --fix to auto-remove unnecessary assertions
+
 ## 2026-04-04 — Phase 8 Batch 5 — Serial Tracking + Printable Stock-Out Slip
 - Agent:               CLAUDE_CODE
 - Why:                 Batch 5 — serial number lifecycle end-to-end (stock-in entry, stock-out selection, product view) + printable SO slip
