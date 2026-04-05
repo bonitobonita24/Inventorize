@@ -10,6 +10,7 @@ import { withTenantContext } from '@inventorize/db';
 import type { Prisma } from '@inventorize/db';
 import bcrypt from 'bcryptjs';
 import { getEmailNotificationsQueue } from '@inventorize/jobs';
+import { generateSetupToken, hashSetupToken, getSetupTokenExpiry } from '@/server/lib/setup-token';
 
 export const userRouter = createTRPCRouter({
   list: tenantProcedure
@@ -69,7 +70,6 @@ export const userRouter = createTRPCRouter({
       z.object({
         name: z.string().min(1).max(200),
         email: z.string().email(),
-        password: z.string().min(8).max(128),
         role: z.enum(['admin', 'warehouse_staff', 'purchasing_staff']),
       }).strict(),
     )
@@ -90,13 +90,13 @@ export const userRouter = createTRPCRouter({
             });
           }
 
-          const hashedPassword = await bcrypt.hash(input.password, 12);
+          // Create user with no password — they set it via setup link
           const user = await prisma.user.create({
             data: {
               tenantId,
               name: input.name,
               email: input.email,
-              hashedPassword,
+              hashedPassword: '',
               role: input.role,
               isActive: true,
             },
@@ -110,14 +110,25 @@ export const userRouter = createTRPCRouter({
             },
           });
 
-          // Enqueue welcome email (non-blocking)
+          // Generate setup token and store hash in VerificationToken (24h expiry)
+          const rawToken = generateSetupToken();
+          const hashedToken = await hashSetupToken(rawToken);
+          await prisma.verificationToken.create({
+            data: {
+              identifier: `setup:${user.email}`,
+              token: hashedToken,
+              expires: getSetupTokenExpiry(),
+            },
+          });
+
+          // Enqueue welcome email with setup link (non-blocking)
           const tenant = await prisma.tenant.findUnique({
             where: { id: tenantId },
             select: { name: true, slug: true },
           });
           if (tenant !== null) {
             const baseUrl = process.env['NEXTAUTH_URL'] ?? 'http://localhost:3000';
-            const loginUrl = `${baseUrl}/${tenant.slug}/dashboard`;
+            const setupUrl = `${baseUrl}/auth/setup?token=${rawToken}&email=${encodeURIComponent(user.email)}`;
             try {
               const queue = getEmailNotificationsQueue();
               await queue.add('welcome-user', {
@@ -129,7 +140,7 @@ export const userRouter = createTRPCRouter({
                 subject: `Welcome to Inventorize — ${tenant.name}`,
                 templateData: {
                   tenantName: tenant.name,
-                  loginUrl,
+                  loginUrl: setupUrl,
                 },
               });
             } catch {

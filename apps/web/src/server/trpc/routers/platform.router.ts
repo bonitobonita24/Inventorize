@@ -7,8 +7,8 @@ import { createTRPCRouter, protectedProcedure } from '../trpc';
 import { requireRole } from '../middleware/rbac';
 import { UserRole } from '@inventorize/shared/enums';
 import { platformPrisma } from '@inventorize/db';
-import bcrypt from 'bcryptjs';
 import { getEmailNotificationsQueue } from '@inventorize/jobs';
+import { generateSetupToken, hashSetupToken, getSetupTokenExpiry } from '@/server/lib/setup-token';
 
 const superAdminProcedure = protectedProcedure.use(requireRole(UserRole.SUPER_ADMIN));
 
@@ -136,7 +136,6 @@ export const platformRouter = createTRPCRouter({
         tenantId: z.string().cuid(),
         name: z.string().min(1).max(200),
         email: z.string().email(),
-        password: z.string().min(8).max(128),
       }).strict(),
     )
     .mutation(async ({ ctx, input }) => {
@@ -161,16 +160,14 @@ export const platformRouter = createTRPCRouter({
         });
       }
 
-      const hashedPassword = await bcrypt.hash(input.password, 12);
-
-      // Atomic: user + audit log in one transaction
+      // Create user with no password — they set it via setup link
       const user = await platformPrisma.$transaction(async (tx) => {
         const created = await tx.user.create({
           data: {
             tenantId: input.tenantId,
             name: input.name,
             email: input.email,
-            hashedPassword,
+            hashedPassword: '',
             role: 'admin',
             isActive: true,
           },
@@ -198,9 +195,20 @@ export const platformRouter = createTRPCRouter({
         return created;
       });
 
-      // Enqueue welcome email (outside transaction — non-blocking)
+      // Generate setup token and store hash in VerificationToken (24h expiry)
+      const rawToken = generateSetupToken();
+      const hashedToken = await hashSetupToken(rawToken);
+      await platformPrisma.verificationToken.create({
+        data: {
+          identifier: `setup:${user.email}`,
+          token: hashedToken,
+          expires: getSetupTokenExpiry(),
+        },
+      });
+
+      // Enqueue welcome email with setup link (outside transaction — non-blocking)
       const baseUrl = process.env['NEXTAUTH_URL'] ?? 'http://localhost:3000';
-      const loginUrl = `${baseUrl}/${tenant.slug}/dashboard`;
+      const setupUrl = `${baseUrl}/auth/setup?token=${rawToken}&email=${encodeURIComponent(user.email)}`;
       try {
         const queue = getEmailNotificationsQueue();
         await queue.add('welcome-tenant-admin', {
@@ -212,7 +220,7 @@ export const platformRouter = createTRPCRouter({
           subject: `Welcome to Inventorize — ${tenant.name}`,
           templateData: {
             tenantName: tenant.name,
-            loginUrl,
+            loginUrl: setupUrl,
           },
         });
       } catch {

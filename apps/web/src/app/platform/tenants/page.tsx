@@ -32,7 +32,6 @@ export default function PlatformTenantsPage() {
   const [createdTenantName, setCreatedTenantName] = useState('');
   const [adminName, setAdminName] = useState('');
   const [adminEmail, setAdminEmail] = useState('');
-  const [adminPassword, setAdminPassword] = useState('');
 
   // --- Confirm dialog state ---
   const [confirmAction, setConfirmAction] = useState<{ tenantId: string; tenantName: string; status: 'active' | 'suspended' } | null>(null);
@@ -88,7 +87,6 @@ export default function PlatformTenantsPage() {
     setCreatedTenantName('');
     setAdminName('');
     setAdminEmail('');
-    setAdminPassword('');
     createTenantMutation.reset();
     createAdminMutation.reset();
   }, [createTenantMutation, createAdminMutation]);
@@ -106,12 +104,11 @@ export default function PlatformTenantsPage() {
   };
 
   const handleCreateAdmin = () => {
-    if (createdTenantId === null || adminName.trim().length === 0 || adminEmail.trim().length === 0 || adminPassword.length < 8) return;
+    if (createdTenantId === null || adminName.trim().length === 0 || adminEmail.trim().length === 0) return;
     createAdminMutation.mutate({
       tenantId: createdTenantId,
       name: adminName.trim(),
       email: adminEmail.trim(),
-      password: adminPassword,
     });
   };
 
@@ -256,17 +253,11 @@ export default function PlatformTenantsPage() {
                 className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
               />
             </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium">Password * (min 8 chars)</label>
-              <input
-                type="password"
-                value={adminPassword}
-                onChange={(e) => { setAdminPassword(e.target.value); }}
-                placeholder="********"
-                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
-              />
-            </div>
           </div>
+
+          <p className="text-sm text-muted-foreground">
+            A setup email will be sent to the admin so they can set their own password.
+          </p>
 
           <div className="flex gap-2">
             <button
@@ -275,7 +266,6 @@ export default function PlatformTenantsPage() {
               disabled={
                 adminName.trim().length === 0 ||
                 adminEmail.trim().length === 0 ||
-                adminPassword.length < 8 ||
                 createAdminMutation.isPending
               }
               className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"

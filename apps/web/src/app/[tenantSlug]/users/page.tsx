@@ -10,7 +10,6 @@ type TenantRole = 'admin' | 'warehouse_staff' | 'purchasing_staff';
 interface CreateFormData {
   name: string;
   email: string;
-  password: string;
   role: TenantRole;
 }
 
@@ -23,7 +22,6 @@ interface EditFormData {
 const emptyCreateForm: CreateFormData = {
   name: '',
   email: '',
-  password: '',
   role: 'warehouse_staff',
 };
 
@@ -76,14 +74,12 @@ export default function UsersPage() {
   const handleCreate = () => {
     if (
       createForm.name.trim().length === 0 ||
-      createForm.email.trim().length === 0 ||
-      createForm.password.length < 8
+      createForm.email.trim().length === 0
     ) return;
 
     createMutation.mutate({
       name: createForm.name.trim(),
       email: createForm.email.trim(),
-      password: createForm.password,
       role: createForm.role,
     });
   };
@@ -156,16 +152,6 @@ export default function UsersPage() {
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">Password * (min 8 chars)</label>
-              <input
-                type="password"
-                value={createForm.password}
-                onChange={(e) => { setCreateForm({ ...createForm, password: e.target.value }); }}
-                placeholder="Minimum 8 characters"
-                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
-              />
-            </div>
-            <div>
               <label className="mb-1 block text-sm font-medium">Role *</label>
               <select
                 value={createForm.role}
@@ -186,7 +172,6 @@ export default function UsersPage() {
               disabled={
                 createForm.name.trim().length === 0 ||
                 createForm.email.trim().length === 0 ||
-                createForm.password.length < 8 ||
                 isCreatePending
               }
               className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"

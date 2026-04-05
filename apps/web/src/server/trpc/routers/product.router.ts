@@ -7,6 +7,7 @@ import { requireRole } from '../middleware/rbac';
 import { UserRole } from '@inventorize/shared/enums';
 import { prisma } from '@inventorize/db';
 import { withTenantContext } from '@inventorize/db';
+import { pricingSelectForRole } from '@/server/lib/pricing-select';
 
 export const productRouter = createTRPCRouter({
   list: tenantProcedure
@@ -93,8 +94,27 @@ export const productRouter = createTRPCRouter({
       return withTenantContext(
         { tenantId, userId },
         async () => {
+          const role = ctx.roles.includes(UserRole.WAREHOUSE_STAFF)
+            ? UserRole.WAREHOUSE_STAFF
+            : ctx.roles.includes(UserRole.PURCHASING_STAFF)
+              ? UserRole.PURCHASING_STAFF
+              : UserRole.ADMIN;
+
           const product = await prisma.product.findFirst({
             where: { id: input.id, tenantId },
+            select: {
+              id: true,
+              productCode: true,
+              barcodeValue: true,
+              name: true,
+              category: true,
+              unit: true,
+              currentQuantity: true,
+              lowStockThreshold: true,
+              serialTrackingEnabled: true,
+              isActive: true,
+              ...pricingSelectForRole(role),
+            },
           });
           if (product === null) {
             return null;
