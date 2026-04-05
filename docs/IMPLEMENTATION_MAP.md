@@ -6,7 +6,7 @@
 - App Name:     Inventorize
 - App Slug:     inventorize
 - Phase:        Phase 8 — Iterative Buildout (Batches 1–12 complete)
-- Last Updated: 2026-04-05
+- Last Updated: 2026-04-05 (CI pipeline fixes — TypeScript + ESLint)
 
 ---
 
@@ -93,14 +93,14 @@
   - [x] product.router.ts (CRUD, list with cursor pagination, stock history) ✦ Batch 5: serialsByProductId query (paginated, status filter) ✦ Batch 8: duplicate productCode + barcodeValue enforcement (create + update) ✦ Batch 12: byId pricing fix — role-based Prisma select via pricingSelectForRole()
   - [x] supplier.router.ts (CRUD, list)
   - [x] purchase-order.router.ts (CRUD, status transitions, list, listReceivable) ✦ Batch 4: listReceivable for stock-in PO selector; byId includes stockIns ✦ Batch 5: listReceivable items include serialTrackingEnabled ✦ Batch 6: attachmentUrl in create; getAttachmentUrl presigned download ✦ Batch 9: deleteAttachment procedure (MinIO delete + null attachmentUrl)
-  - [x] stock-in.router.ts (create with serial numbers, list) ✦ Batch 4: create propagates receivedQty to PurchaseOrderItem + auto-updates PO status ✦ Batch 6: getAttachmentUrl presigned download ✦ Batch 9: deleteAttachment procedure (MinIO delete + null attachmentUrl)
-  - [x] stock-out.router.ts (create with slip number, list) ✦ Batch 5: serialsForProduct query; create validates serials + marks issued; list includes releasedByUser + item product details
-  - [x] stock-adjustment.router.ts (create, list) ✦ Batch 8: serialNumberId input, serial validation, serial status update, serialNumberId in movement log ✦ Batch 9: in_stock status guard — rejects issued/adjusted serials
+  - [x] stock-in.router.ts (create with serial numbers, list) ✦ Batch 4: create propagates receivedQty to PurchaseOrderItem + auto-updates PO status ✦ Batch 6: getAttachmentUrl presigned download ✦ Batch 9: deleteAttachment procedure (MinIO delete + null attachmentUrl) ✦ CI fix: PrismaTx = Omit<typeof prisma, ...> annotation on $transaction callback
+  - [x] stock-out.router.ts (create with slip number, list) ✦ Batch 5: serialsForProduct query; create validates serials + marks issued; list includes releasedByUser + item product details ✦ CI fix: PrismaTx = Omit<typeof prisma, ...> annotation on $transaction callback
+  - [x] stock-adjustment.router.ts (create, list) ✦ Batch 8: serialNumberId input, serial validation, serial status update, serialNumberId in movement log ✦ Batch 9: in_stock status guard — rejects issued/adjusted serials ✦ CI fix: PrismaTx = Omit<typeof prisma, ...> annotation on $transaction callback
   - [x] user.router.ts (CRUD, role assignment, impersonation) ✦ Batch 8: welcome email enqueue via BullMQ on user creation ✦ Batch 12: setup token flow — password removed from create input; generates VerificationToken (identifier: setup:${email}, bcrypt hash); welcome email now sends /auth/setup link
   - [x] auth.router.ts (NEW Batch 12: public tRPC procedures — validateSetupToken + completeSetup; atomic $transaction: password set + VerificationToken delete)
   - [x] audit-log.router.ts (list with filters)
-  - [x] report.router.ts (dashboard KPIs, low stock, movement history, valuation) ✦ Batch 6: inventorySnapshot + inventorySummary added ✦ Batch 10: logExport mutation (audit trail on CSV export) + movementCounts query (period-based stock-in/out counts)
-  - [x] platform.router.ts (superadmin: tenant CRUD, metrics, audit — separate Prisma instance) ✦ Batch 8: removed invalid isActive from tenant create ✦ Batch 9: atomic $transaction on createTenant, createTenantAdmin, updateTenantStatus (audit log rolls back on failure) ✦ Batch 10: platformMetrics returns per-tenant active user breakdown ✦ Batch 11: startImpersonation + stopImpersonation mutations with PLATFORM audit logs ✦ Batch 12: createTenantAdmin setup token flow — password removed from input; generates VerificationToken + setup URL in welcome email
+  - [x] report.router.ts (dashboard KPIs, low stock, movement history, valuation) ✦ Batch 6: inventorySnapshot + inventorySummary added ✦ Batch 10: logExport mutation (audit trail on CSV export) + movementCounts query (period-based stock-in/out counts) ✦ CI fix: removed unused requireRole/UserRole imports; added eslint-disable for ctx.tenantId!/userId! in logExport + movementCounts
+  - [x] platform.router.ts (superadmin: tenant CRUD, metrics, audit — separate Prisma instance) ✦ Batch 8: removed invalid isActive from tenant create ✦ Batch 9: atomic $transaction on createTenant, createTenantAdmin, updateTenantStatus (audit log rolls back on failure) ✦ Batch 10: platformMetrics returns per-tenant active user breakdown ✦ Batch 11: startImpersonation + stopImpersonation mutations with PLATFORM audit logs ✦ Batch 12: createTenantAdmin setup token flow — password removed from input; generates VerificationToken + setup URL in welcome email ✦ CI fix: removed dead toSlug function (no-unused-vars)
 - [x] apps/web/src/app/ — Pages:
   - [x] layout.tsx (root layout with TRPCProvider + ImpersonationBanner)
   - [x] login/page.tsx
@@ -112,14 +112,14 @@
   - [x] [tenantSlug]/products/page.tsx + [id]/page.tsx + [id]/history/page.tsx ✦ Batch 3: create/edit form (admin-only), real-time price preview, serial tracking toggle, Decimal conversion, deactivate/activate ✦ Batch 5: [id]/page.tsx has Serials tab (serialsByProductId, status filter, pagination, colored badges) ✦ Batch 7: [id]/history/page.tsx — movementType select, startDate/endDate date pickers, clear button, pagination, Notes column
   - [x] [tenantSlug]/suppliers/page.tsx ✦ Batch 2: create/edit form, activate/deactivate toggle
   - [x] [tenantSlug]/purchase-orders/page.tsx + [id]/page.tsx ✦ Batch 3: create form with dynamic line items, supplier dropdown, auto-fill cost, order total, supplier name in list ✦ Batch 4: [id]/page.tsx shows linked Receipts section ✦ Batch 6: file attachment upload on create; download button on detail ✦ Batch 9: [id]/page.tsx delete attachment button with confirm dialog
-  - [x] [tenantSlug]/stock-in/page.tsx ✦ Batch 1: BarcodeScanner + create form ✦ Batch 4: PO dropdown selector, auto-populate remaining items ✦ Batch 5: serial entry panel ✦ Batch 6: delivery receipt upload; Receipt column with presigned download in list ✦ Batch 9: delete attachment button (✕) in receipt column with confirm dialog
+  - [x] [tenantSlug]/stock-in/page.tsx ✦ Batch 1: BarcodeScanner + create form ✦ Batch 4: PO dropdown selector, auto-populate remaining items ✦ Batch 5: serial entry panel ✦ Batch 6: delivery receipt upload; Receipt column with presigned download in list ✦ Batch 9: delete attachment button (✕) in receipt column with confirm dialog ✦ CI fix: NonNullable<typeof receivablePOs>[number] annotation on find/map callbacks
   - [x] [tenantSlug]/stock-out/page.tsx ✦ Batch 1: BarcodeScanner + create form ✦ Batch 5: SerialPicker (checkbox list of in_stock serials), PrintSlipModal (SO-XXXXX slip, window.print()), serialsValid gate
   - [x] [tenantSlug]/adjustments/page.tsx ✦ Batch 2: create form with reason enum, BarcodeScanner, delta preview ✦ Batch 8: SerialPicker for serial-tracked products, serial column, serialNumberId in payload
   - [x] [tenantSlug]/audit-logs/page.tsx ✦ Batch 2: entity type + date range filters, pagination, action badges
   - [x] [tenantSlug]/reports/page.tsx ✦ Batch 1: CSV export (movements + low stock) ✦ Batch 6: full rewrite — 5 tabs (stock movements, low stock, inventory snapshot, product history, audit trail); filters; CSV export per tab; admin-only audit trail tab ✦ Batch 10: logExport mutation called before every CSV download
   - [x] apps/web/src/app/api/upload/route.ts ✦ Batch 6: non-tRPC multipart upload handler (manual auth + tenant guard + MinIO) — entityType: po-attachment | delivery-receipt
   - [x] [tenantSlug]/users/page.tsx ✦ Batch 3: create form, inline edit, disable/enable toggle, role assignment, search, pagination ✦ Batch 12: password field removed from create form (setup link sent instead)
-  - [x] platform/layout.tsx + tenants/page.tsx + audit-logs/page.tsx + metrics/page.tsx ✦ Batch 8: tenants/page.tsx full rewrite — create tenant + first admin onboarding, suspend/reactivate with dialog, search/filter, pagination ✦ Batch 10: metrics/page.tsx per-tenant active user breakdown table ✦ Batch 11: tenants/page.tsx "View as tenant" impersonate button per row ✦ Batch 12: admin password field removed from create-admin form (setup link explanation text added)
+  - [x] platform/layout.tsx + tenants/page.tsx + audit-logs/page.tsx + metrics/page.tsx ✦ Batch 8: tenants/page.tsx full rewrite — create tenant + first admin onboarding, suspend/reactivate with dialog, search/filter, pagination ✦ Batch 10: metrics/page.tsx per-tenant active user breakdown table ✦ Batch 11: tenants/page.tsx "View as tenant" impersonate button per row ✦ Batch 12: admin password field removed from create-admin form (setup link explanation text added) ✦ CI fix: removed unnecessary as 'active'|'suspended'|'trial' assertion on statusFilter (already narrowed by !== '' guard)
   - [x] auth/setup/page.tsx (NEW Batch 12: client component + Suspense boundary; reads token+email from searchParams; validateSetupToken query on mount; completeSetup mutation → signIn → redirect to /)
 - [x] apps/web/src/server/lib/rate-limit.ts (LRU-based, 4 tiers: public/auth/api/upload)
 - [x] apps/web/src/server/lib/sanitize.ts (DOMPurify — sanitize + sanitizePlainText)
@@ -149,7 +149,7 @@
 - [x] .socraticodecontextartifacts.json (4 artifacts: schema, map, decisions, product)
 
 ### Part 8: CI + Governance — COMPLETE
-- [x] .github/workflows/ci.yml (governance gates, quality matrix: lint/typecheck/test/build, security audit)
+- [x] .github/workflows/ci.yml (governance gates, quality matrix: lint/typecheck/test/build, security audit) ✦ CI fix: added explicit pnpm --filter @inventorize/db db:generate step before Turbo run; packages/db/package.json gains postinstall: prisma generate for Docker build stage
 - [x] MANIFEST.txt (complete file listing across all 8 Parts)
 - [ ] SocratiCode initial index (deferred — requires Docker running + SocratiCode MCP active)
 

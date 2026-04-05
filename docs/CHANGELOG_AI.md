@@ -3,6 +3,16 @@
 # Include agent attribution in every entry.
 # ---
 
+## 2026-04-05 — CI / Docker pipeline fixes (TypeScript + ESLint)
+- Agent:               CLAUDE_CODE
+- Why:                 GitHub Actions CI and Docker Build & Publish pipelines were failing. Root causes: (1) Prisma client not generated in CI/Docker before typecheck/build — fixed with postinstall script + explicit generate step. (2) TS7006 implicit-any in stock-in/page.tsx callback parameters. (3) TS2769 overload mismatch in $transaction callbacks for extended Prisma client — correct type is Omit<typeof prisma, ...> not Prisma.TransactionClient. (4) ESLint errors surfaced by next build in Docker: unnecessary type assertion in tenants/page.tsx; dead toSlug function in platform.router.ts; unused requireRole/UserRole imports + missing eslint-disable comments in report.router.ts.
+- Files added:         none
+- Files modified:      packages/db/package.json (postinstall: prisma generate), .github/workflows/ci.yml (explicit db:generate step in quality job), apps/web/src/app/[tenantSlug]/stock-in/page.tsx (NonNullable<typeof receivablePOs>[number] annotation on find/map callbacks), apps/web/src/server/trpc/routers/stock-adjustment.router.ts (PrismaTx type for $transaction callback), apps/web/src/server/trpc/routers/stock-in.router.ts (PrismaTx type for $transaction callback), apps/web/src/server/trpc/routers/stock-out.router.ts (PrismaTx type for $transaction callback), apps/web/src/app/platform/tenants/page.tsx (removed as 'active'|'suspended'|'trial' — already narrowed by !== '' guard), apps/web/src/server/trpc/routers/platform.router.ts (removed dead toSlug function), apps/web/src/server/trpc/routers/report.router.ts (removed unused requireRole/UserRole imports; added eslint-disable comments for ctx.tenantId!/ctx.userId! in logExport and movementCounts)
+- Files deleted:       none
+- Schema/migrations:   none
+- Errors encountered:  TS7006 implicit-any on Array.find/map callbacks; TS2769 $transaction overload mismatch on extended prisma client; ESLint no-unnecessary-type-assertion; ESLint no-unused-vars; Prisma client missing in CI Docker build stage
+- Errors resolved:     NonNullable<T>[number] for callback element types; Omit<typeof prisma, '$connect'|'$disconnect'|'$on'|'$transaction'|'$use'|'$extends'> as canonical $transaction tx type for extended clients; postinstall + explicit generate step ensures client exists in all CI contexts; ESLint errors cleared by removing dead code and adding targeted disable comments
+
 ## 2026-04-05 — Phase 8 Batch 12: Setup Token Flow + Pricing Visibility Fix
 - Agent:               CLAUDE_CODE
 - Why:                 (1) Users must set their own password via a one-time setup link (Phase 2.7 decision). Password field removed from user/admin create flows. (2) product.byId was returning supplierCost/markupPercent to all roles — warehouse_staff must only see sellingPrice.
