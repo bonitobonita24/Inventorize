@@ -129,7 +129,8 @@ export const stockOutRouter = createTRPCRouter({
             }
           }
 
-          return prisma.$transaction(async (tx) => {
+          type PrismaTx = Omit<typeof prisma, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'>;
+          return prisma.$transaction(async (tx: PrismaTx) => {
             // Generate slip number (SO-00001 format, per-tenant sequential)
             const lastOut = await tx.stockOut.findFirst({
               where: { tenantId },

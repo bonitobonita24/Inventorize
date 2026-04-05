@@ -85,7 +85,8 @@ export const stockInRouter = createTRPCRouter({
           }
 
           // Atomic transaction — stock in + serial records + quantity update + movement log
-          return prisma.$transaction(async (tx) => {
+          type PrismaTx = Omit<typeof prisma, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'>;
+          return prisma.$transaction(async (tx: PrismaTx) => {
             const stockIn = await tx.stockIn.create({
               data: {
                 tenantId,

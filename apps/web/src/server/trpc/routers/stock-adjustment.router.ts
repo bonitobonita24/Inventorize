@@ -65,7 +65,8 @@ export const stockAdjustmentRouter = createTRPCRouter({
       return withTenantContext(
         { tenantId, userId },
         async () => {
-          return prisma.$transaction(async (tx) => {
+          type PrismaTx = Omit<typeof prisma, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'>;
+          return prisma.$transaction(async (tx: PrismaTx) => {
             // Validate all products exist and stock won't go negative
             for (const item of input.items) {
               const product = await tx.product.findFirstOrThrow({

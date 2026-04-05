@@ -67,6 +67,11 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # Prisma client must be generated before typecheck/lint/build.
+      # postinstall in packages/db handles this for local dev; explicit step
+      # ensures it runs even if postinstall is skipped by pnpm CI heuristics.
+      - run: pnpm --filter @inventorize/db db:generate
+
       - uses: actions/cache@v4
         with:
           path: .turbo

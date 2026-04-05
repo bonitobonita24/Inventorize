@@ -82,7 +82,7 @@ export default function StockInPage() {
       return;
     }
     setSelectedPoId(poId);
-    const po = receivablePOs?.find((p) => p.id === poId);
+    const po = receivablePOs?.find((p: NonNullable<typeof receivablePOs>[number]) => p.id === poId);
     if (po === undefined) return;
     const items: PendingItem[] = po.items
       .filter((item: typeof po.items[number]) => item.orderedQty - item.receivedQty > 0)
@@ -211,7 +211,7 @@ export default function StockInPage() {
               className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
             >
               <option value="">— No PO —</option>
-              {receivablePOs?.map((po) => (
+              {receivablePOs?.map((po: NonNullable<typeof receivablePOs>[number]) => (
                 <option key={po.id} value={po.id}>
                   {po.poNumber}{po.supplier !== null ? ` — ${po.supplier.name}` : ''}
                 </option>
