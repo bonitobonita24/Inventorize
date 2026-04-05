@@ -5,8 +5,8 @@
 ## Project Info
 - App Name:     Inventorize
 - App Slug:     inventorize
-- Phase:        Phase 8 — Iterative Buildout (Batches 1–10 complete)
-- Last Updated: 2026-04-04
+- Phase:        Phase 8 — Iterative Buildout (Batches 1–12 complete)
+- Last Updated: 2026-04-05
 
 ---
 
@@ -19,7 +19,7 @@
 - [x] Phase 5: Validation (all 9 commands pass)
 - [x] Phase 6: Docker Startup
 - [x] Phase 7: Feature Updates (via Phase 8 batches)
-- [ ] Phase 8: Iterative Buildout (Batches 1–11 of N complete)
+- [x] Phase 8: Iterative Buildout (Batches 1–12 complete)
 
 ---
 
@@ -90,16 +90,17 @@
 - [x] apps/web/src/server/trpc/middleware/rbac.ts (L3 RBAC role guard)
 - [x] apps/web/src/server/trpc/middleware/tenant.ts (L1 tenant scope enforcement + blockIfImpersonating middleware)
 - [x] apps/web/src/server/trpc/routers/ — 10 routers:
-  - [x] product.router.ts (CRUD, list with cursor pagination, stock history) ✦ Batch 5: serialsByProductId query (paginated, status filter) ✦ Batch 8: duplicate productCode + barcodeValue enforcement (create + update)
+  - [x] product.router.ts (CRUD, list with cursor pagination, stock history) ✦ Batch 5: serialsByProductId query (paginated, status filter) ✦ Batch 8: duplicate productCode + barcodeValue enforcement (create + update) ✦ Batch 12: byId pricing fix — role-based Prisma select via pricingSelectForRole()
   - [x] supplier.router.ts (CRUD, list)
   - [x] purchase-order.router.ts (CRUD, status transitions, list, listReceivable) ✦ Batch 4: listReceivable for stock-in PO selector; byId includes stockIns ✦ Batch 5: listReceivable items include serialTrackingEnabled ✦ Batch 6: attachmentUrl in create; getAttachmentUrl presigned download ✦ Batch 9: deleteAttachment procedure (MinIO delete + null attachmentUrl)
   - [x] stock-in.router.ts (create with serial numbers, list) ✦ Batch 4: create propagates receivedQty to PurchaseOrderItem + auto-updates PO status ✦ Batch 6: getAttachmentUrl presigned download ✦ Batch 9: deleteAttachment procedure (MinIO delete + null attachmentUrl)
   - [x] stock-out.router.ts (create with slip number, list) ✦ Batch 5: serialsForProduct query; create validates serials + marks issued; list includes releasedByUser + item product details
   - [x] stock-adjustment.router.ts (create, list) ✦ Batch 8: serialNumberId input, serial validation, serial status update, serialNumberId in movement log ✦ Batch 9: in_stock status guard — rejects issued/adjusted serials
-  - [x] user.router.ts (CRUD, role assignment, impersonation) ✦ Batch 8: welcome email enqueue via BullMQ on user creation
+  - [x] user.router.ts (CRUD, role assignment, impersonation) ✦ Batch 8: welcome email enqueue via BullMQ on user creation ✦ Batch 12: setup token flow — password removed from create input; generates VerificationToken (identifier: setup:${email}, bcrypt hash); welcome email now sends /auth/setup link
+  - [x] auth.router.ts (NEW Batch 12: public tRPC procedures — validateSetupToken + completeSetup; atomic $transaction: password set + VerificationToken delete)
   - [x] audit-log.router.ts (list with filters)
   - [x] report.router.ts (dashboard KPIs, low stock, movement history, valuation) ✦ Batch 6: inventorySnapshot + inventorySummary added ✦ Batch 10: logExport mutation (audit trail on CSV export) + movementCounts query (period-based stock-in/out counts)
-  - [x] platform.router.ts (superadmin: tenant CRUD, metrics, audit — separate Prisma instance) ✦ Batch 8: removed invalid isActive from tenant create ✦ Batch 9: atomic $transaction on createTenant, createTenantAdmin, updateTenantStatus (audit log rolls back on failure) ✦ Batch 10: platformMetrics returns per-tenant active user breakdown ✦ Batch 11: startImpersonation + stopImpersonation mutations with PLATFORM audit logs
+  - [x] platform.router.ts (superadmin: tenant CRUD, metrics, audit — separate Prisma instance) ✦ Batch 8: removed invalid isActive from tenant create ✦ Batch 9: atomic $transaction on createTenant, createTenantAdmin, updateTenantStatus (audit log rolls back on failure) ✦ Batch 10: platformMetrics returns per-tenant active user breakdown ✦ Batch 11: startImpersonation + stopImpersonation mutations with PLATFORM audit logs ✦ Batch 12: createTenantAdmin setup token flow — password removed from input; generates VerificationToken + setup URL in welcome email
 - [x] apps/web/src/app/ — Pages:
   - [x] layout.tsx (root layout with TRPCProvider + ImpersonationBanner)
   - [x] login/page.tsx
@@ -117,10 +118,13 @@
   - [x] [tenantSlug]/audit-logs/page.tsx ✦ Batch 2: entity type + date range filters, pagination, action badges
   - [x] [tenantSlug]/reports/page.tsx ✦ Batch 1: CSV export (movements + low stock) ✦ Batch 6: full rewrite — 5 tabs (stock movements, low stock, inventory snapshot, product history, audit trail); filters; CSV export per tab; admin-only audit trail tab ✦ Batch 10: logExport mutation called before every CSV download
   - [x] apps/web/src/app/api/upload/route.ts ✦ Batch 6: non-tRPC multipart upload handler (manual auth + tenant guard + MinIO) — entityType: po-attachment | delivery-receipt
-  - [x] [tenantSlug]/users/page.tsx ✦ Batch 3: create form, inline edit, disable/enable toggle, role assignment, search, pagination
-  - [x] platform/layout.tsx + tenants/page.tsx + audit-logs/page.tsx + metrics/page.tsx ✦ Batch 8: tenants/page.tsx full rewrite — create tenant + first admin onboarding, suspend/reactivate with dialog, search/filter, pagination ✦ Batch 10: metrics/page.tsx per-tenant active user breakdown table ✦ Batch 11: tenants/page.tsx "View as tenant" impersonate button per row
+  - [x] [tenantSlug]/users/page.tsx ✦ Batch 3: create form, inline edit, disable/enable toggle, role assignment, search, pagination ✦ Batch 12: password field removed from create form (setup link sent instead)
+  - [x] platform/layout.tsx + tenants/page.tsx + audit-logs/page.tsx + metrics/page.tsx ✦ Batch 8: tenants/page.tsx full rewrite — create tenant + first admin onboarding, suspend/reactivate with dialog, search/filter, pagination ✦ Batch 10: metrics/page.tsx per-tenant active user breakdown table ✦ Batch 11: tenants/page.tsx "View as tenant" impersonate button per row ✦ Batch 12: admin password field removed from create-admin form (setup link explanation text added)
+  - [x] auth/setup/page.tsx (NEW Batch 12: client component + Suspense boundary; reads token+email from searchParams; validateSetupToken query on mount; completeSetup mutation → signIn → redirect to /)
 - [x] apps/web/src/server/lib/rate-limit.ts (LRU-based, 4 tiers: public/auth/api/upload)
 - [x] apps/web/src/server/lib/sanitize.ts (DOMPurify — sanitize + sanitizePlainText)
+- [x] apps/web/src/server/lib/setup-token.ts (NEW Batch 12: generateSetupToken / hashSetupToken / getSetupTokenExpiry)
+- [x] apps/web/src/server/lib/pricing-select.ts (NEW Batch 12: pricingSelectForRole — admin/super_admin/purchasing_staff see all pricing; warehouse_staff sees sellingPrice only)
 - [x] apps/web/src/lib/trpc.ts + trpc-provider.tsx (client-side tRPC hooks + SessionProvider for useSession().update())
 - [x] apps/web/src/components/impersonation-banner.tsx ✦ Batch 11: amber sticky banner during impersonation with exit button
 - [x] apps/web/src/lib/csv-export.ts ✦ Batch 1: downloadCsv() utility for client-side CSV generation

@@ -24,3 +24,4 @@
 ## 2026-04-05 | CLAUDE_CODE | README.md generated — Phase 8 complete. Covers: project overview, tech stack, quick start, dev commands, docker pipeline, architecture, security layers, git workflow, deployment.
 # ---
 ## 2026-04-05 | CLAUDE_CODE | Governance Sync complete — SpecStory history gitignored. 45 history files untracked from git (local copies preserved). .gitignore updated. lessons.md 🔴 gotcha written. CHANGELOG_AI updated.
+## 2026-04-05 | CLAUDE_CODE | Phase 8 Batch 12 complete — setup token flow (auth.router.ts, setup-token.ts, /auth/setup page), pricing visibility fix (pricing-select.ts, product.byId role-based select), password removed from user.create + createTenantAdmin, TS errors fixed on users/page + tenants/page. Squash-merged to main. Governance docs updated.

@@ -3,6 +3,16 @@
 # Include agent attribution in every entry.
 # ---
 
+## 2026-04-05 — Phase 8 Batch 12: Setup Token Flow + Pricing Visibility Fix
+- Agent:               CLAUDE_CODE
+- Why:                 (1) Users must set their own password via a one-time setup link (Phase 2.7 decision). Password field removed from user/admin create flows. (2) product.byId was returning supplierCost/markupPercent to all roles — warehouse_staff must only see sellingPrice.
+- Files added:         apps/web/src/server/lib/setup-token.ts, apps/web/src/server/lib/pricing-select.ts, apps/web/src/server/trpc/routers/auth.router.ts, apps/web/src/app/auth/setup/page.tsx, apps/web/src/__tests__/setup-token.test.ts, apps/web/src/__tests__/pricing-visibility.test.ts, apps/web/vitest.config.ts
+- Files modified:      apps/web/src/server/trpc/routers/product.router.ts (byId pricing fix — role-based select), apps/web/src/server/trpc/routers/user.router.ts (setup token instead of password; removed password from input), apps/web/src/server/trpc/routers/platform.router.ts (setup token instead of password; removed password from input), apps/web/src/server/trpc/router.ts (authRouter registered), apps/web/src/app/[tenantSlug]/users/page.tsx (removed password field from create form), apps/web/src/app/platform/tenants/page.tsx (removed password field from admin create form)
+- Files deleted:       none
+- Schema/migrations:   none (uses existing VerificationToken table with identifier pattern setup:${email})
+- Errors encountered:  TS2353 on users/page.tsx (password still passed to mutate after schema change); TS2353 on platform/tenants/page.tsx (same); wrong trpc client import path (@/lib/trpc/client → @/lib/trpc)
+- Errors resolved:     Removed password from CreateFormData, emptyCreateForm, handleCreate, button disabled guard, and form UI in both pages. Fixed import path.
+
 ## 2026-04-05 — Security: gitignore SpecStory history, untrack committed sessions
 - Agent:               CLAUDE_CODE
 - Why:                 Governance Sync found that SpecStory session history files can capture credentials when pasted into chat. One credential-rotation session (2026-04-05_03-49-55Z) was found untracked but at risk of accidental commit. 45 previously committed history files also removed from git tracking.
