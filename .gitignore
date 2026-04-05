@@ -35,6 +35,5 @@ CREDENTIALS.md
 # Skills — installed packs may have their own node_modules
 .github/skills/**/node_modules/
 
-# SpecStory session history — may capture credentials or sensitive prompt content
-# Sessions are preserved locally; only excluded from git to prevent accidental leaks
-.specstory/history/
+# SpecStory — exclude everything to prevent accidental leaks
+.specstory/
