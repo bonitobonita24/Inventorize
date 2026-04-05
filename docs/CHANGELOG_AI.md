@@ -3,6 +3,16 @@
 # Include agent attribution in every entry.
 # ---
 
+## 2026-04-05 — Security: gitignore SpecStory history, untrack committed sessions
+- Agent:               CLAUDE_CODE
+- Why:                 Governance Sync found that SpecStory session history files can capture credentials when pasted into chat. One credential-rotation session (2026-04-05_03-49-55Z) was found untracked but at risk of accidental commit. 45 previously committed history files also removed from git tracking.
+- Files added:         none
+- Files modified:      .gitignore (added .specstory/history/ entry)
+- Files deleted:       45 .specstory/history/*.md files (untracked from git — local copies preserved)
+- Schema/migrations:   none
+- Errors encountered:  none
+- Errors resolved:     none
+
 ## 2026-04-05 — README.md generated (Phase 8 complete — PRODUCT.md fully implemented)
 - Agent:               CLAUDE_CODE
 - Why:                 All PRODUCT.md features implemented across Batches 1-11. Generated README.md per Phase 8 completion gate.

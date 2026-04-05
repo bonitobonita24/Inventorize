@@ -29,6 +29,19 @@
   automatically available to apps/web in the pnpm workspace (no hoisting by default).
   Fix: add bullmq as a direct dependency of apps/web with `pnpm add bullmq` inside apps/web.
 
+## 2026-04-05 — 🔴 SpecStory history captures credentials pasted into chat
+- Type:      🔴 gotcha
+- Phase:     Ongoing — any session
+- Files:     .gitignore, .specstory/history/
+- Concepts:  specstory, credentials, gitignore, security
+- Narrative: SpecStory captures the full text of every chat session including user messages.
+  If a user pastes credentials (tokens, passwords) into the chat, they appear verbatim in the
+  .specstory/history/ markdown file. If that file is committed to git (e.g. via git add .),
+  credentials leak into the repository history.
+  Fix: add .specstory/history/ to .gitignore. Run git rm --cached .specstory/history/ -r to
+  untrack any already-committed files. Local copies are preserved — only git tracking is removed.
+  Rule: NEVER paste raw credential values into chat. Use CREDENTIALS.md (gitignored) instead.
+
 ## 2026-04-04 — 🟡 noUncheckedIndexedAccess fires on provably non-empty array access
 - Type:      🟡 fix
 - Phase:     Phase 8 Batch 7
