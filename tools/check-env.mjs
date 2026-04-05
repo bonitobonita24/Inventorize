@@ -38,6 +38,12 @@ const REQUIRED_VARS = [
   'PGADMIN_PASSWORD',
 ];
 
+// CI runners don't have .env.dev (gitignored) — skip check entirely
+if (process.env['CI'] === 'true') {
+  console.log('⚠ CI environment detected — skipping .env.dev check');
+  process.exit(0);
+}
+
 try {
   const envPath = resolve(root, '.env.dev');
 

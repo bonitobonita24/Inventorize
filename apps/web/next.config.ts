@@ -23,6 +23,9 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   output: 'standalone',
+  // Prevent webpack from bundling these packages — they use dynamic require or
+  // Node.js-only APIs incompatible with the Edge Runtime / webpack static analysis.
+  serverExternalPackages: ['bullmq', 'ioredis'],
   transpilePackages: [
     '@inventorize/shared',
     '@inventorize/db',
