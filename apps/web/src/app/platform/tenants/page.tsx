@@ -45,7 +45,7 @@ export default function PlatformTenantsPage() {
     page,
     limit: 50,
     ...(search.length > 0 ? { search } : {}),
-    ...(statusFilter !== '' ? { status: statusFilter as 'active' | 'suspended' | 'trial' } : {}),
+    ...(statusFilter !== '' ? { status: statusFilter } : {}),
   };
 
   const { data, isLoading, refetch } = trpc.platform.listTenants.useQuery(queryInput);

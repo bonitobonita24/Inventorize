@@ -13,15 +13,6 @@ import { generateSetupToken, hashSetupToken, getSetupTokenExpiry } from '@/serve
 
 const superAdminProcedure = protectedProcedure.use(requireRole(UserRole.SUPER_ADMIN));
 
-/** Convert a tenant name to a URL-safe slug (lowercase, special chars → hyphens). */
-function toSlug(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .substring(0, 60);
-}
-
 export const platformRouter = createTRPCRouter({
   listTenants: superAdminProcedure
     .input(

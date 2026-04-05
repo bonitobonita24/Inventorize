@@ -2,8 +2,6 @@
 
 import { z } from 'zod';
 import { createTRPCRouter, tenantProcedure, tenantMutationProcedure } from '../trpc';
-import { requireRole } from '../middleware/rbac';
-import { UserRole } from '@inventorize/shared/enums';
 import { prisma } from '@inventorize/db';
 import { withTenantContext } from '@inventorize/db';
 
@@ -151,7 +149,9 @@ export const reportRouter = createTRPCRouter({
       }).strict(),
     )
     .mutation(async ({ ctx, input }) => {
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
       const tenantId = ctx.tenantId!;
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
       const userId = ctx.userId!;
       return withTenantContext({ tenantId, userId }, async () => {
         await prisma.auditLog.create({
@@ -176,7 +176,9 @@ export const reportRouter = createTRPCRouter({
       }).strict(),
     )
     .query(async ({ ctx, input }) => {
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
       const tenantId = ctx.tenantId!;
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
       const userId = ctx.userId!;
       return withTenantContext({ tenantId, userId }, async () => {
         const since = new Date();
