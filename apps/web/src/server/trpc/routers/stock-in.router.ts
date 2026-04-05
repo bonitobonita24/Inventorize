@@ -183,8 +183,8 @@ export const stockInRouter = createTRPCRouter({
                 select: { orderedQty: true, receivedQty: true },
               });
 
-              const allReceived = poItems.every((poi) => poi.receivedQty >= poi.orderedQty);
-              const anyReceived = poItems.some((poi) => poi.receivedQty > 0);
+              const allReceived = poItems.every((poi: typeof poItems[number]) => poi.receivedQty >= poi.orderedQty);
+              const anyReceived = poItems.some((poi: typeof poItems[number]) => poi.receivedQty > 0);
               const newStatus = allReceived ? 'received' : anyReceived ? 'partially_received' : 'ordered';
 
               await tx.purchaseOrder.update({

@@ -129,11 +129,11 @@ export const reportRouter = createTRPCRouter({
           ]);
 
           const lowStockProducts = lowStockRaw.filter(
-            (p) => p.currentQuantity <= p.lowStockThreshold,
+            (p: typeof lowStockRaw[number]) => p.currentQuantity <= p.lowStockThreshold,
           ).length;
 
           const inventoryValue = totalValue.reduce(
-            (sum, p) => sum + p.currentQuantity * p.sellingPrice.toNumber(),
+            (sum: number, p: typeof totalValue[number]) => sum + p.currentQuantity * p.sellingPrice.toNumber(),
             0,
           );
 
@@ -249,7 +249,7 @@ export const reportRouter = createTRPCRouter({
           prisma.product.count({ where }),
         ]);
         return {
-          items: items.map((p) => ({
+          items: items.map((p: typeof items[number]) => ({
             ...p,
             sellingPrice: p.sellingPrice.toNumber(),
             supplierCost:

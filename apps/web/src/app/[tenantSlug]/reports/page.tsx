@@ -112,7 +112,7 @@ export default function ReportsPage() {
       },
     });
     downloadCsv(
-      movements.items.map((m) => ({
+      movements.items.map((m: typeof movements.items[number]) => ({
         date: new Date(m.performedAt).toLocaleString(),
         productCode: m.product?.productCode ?? '',
         productName: m.product?.name ?? '',
@@ -150,7 +150,7 @@ export default function ReportsPage() {
     if (lowStockItems.length === 0) return;
     logExport.mutate({ reportType: 'low_stock' });
     downloadCsv(
-      lowStockItems.map((p) => ({
+      lowStockItems.map((p: typeof lowStockItems[number]) => ({
         productCode: p.productCode,
         name: p.name,
         category: p.category,
@@ -180,7 +180,7 @@ export default function ReportsPage() {
       },
     });
     downloadCsv(
-      inventory.items.map((p) => ({
+      inventory.items.map((p: typeof inventory.items[number]) => ({
         productCode: p.productCode,
         name: p.name,
         category: p.category ?? '',
@@ -335,7 +335,7 @@ export default function ReportsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {(movements?.items ?? []).map((log) => (
+                  {(movements?.items ?? []).map((log: NonNullable<typeof movements>['items'][number]) => (
                     <tr key={log.id} className="border-b border-border last:border-0">
                       <td className="px-4 py-3 text-xs text-muted-foreground">
                         {new Date(log.performedAt).toLocaleString()}
@@ -521,7 +521,7 @@ export default function ReportsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {(inventory?.items ?? []).map((p) => (
+                  {(inventory?.items ?? []).map((p: NonNullable<typeof inventory>['items'][number]) => (
                     <tr key={p.id} className="border-b border-border last:border-0">
                       <td className="px-4 py-3 font-mono text-xs">{p.productCode}</td>
                       <td className="px-4 py-3 font-medium">{p.name}</td>
@@ -581,7 +581,7 @@ export default function ReportsPage() {
                 className="rounded-md border border-border bg-background px-3 py-1.5 text-sm min-w-64"
               >
                 <option value="">— choose a product —</option>
-                {(products?.items ?? []).map((p) => (
+                {(products?.items ?? []).map((p: NonNullable<typeof products>['items'][number]) => (
                   <option key={p.id} value={p.id}>
                     [{p.productCode}] {p.name}
                   </option>
@@ -611,7 +611,7 @@ export default function ReportsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {(productHistory?.items ?? []).map((log) => (
+                  {(productHistory?.items ?? []).map((log: NonNullable<typeof productHistory>['items'][number]) => (
                     <tr key={log.id} className="border-b border-border last:border-0">
                       <td className="px-4 py-3 text-xs text-muted-foreground">
                         {new Date(log.performedAt).toLocaleString()}
@@ -715,7 +715,7 @@ export default function ReportsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {(auditLogs?.items ?? []).map((log) => (
+                  {(auditLogs?.items ?? []).map((log: NonNullable<typeof auditLogs>['items'][number]) => (
                     <tr key={log.id} className="border-b border-border last:border-0">
                       <td className="px-4 py-3 text-xs text-muted-foreground">
                         {new Date(log.createdAt).toLocaleString()}

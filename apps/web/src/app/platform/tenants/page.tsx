@@ -326,7 +326,7 @@ export default function PlatformTenantsPage() {
               </tr>
             </thead>
             <tbody>
-              {data?.items.map((tenant) => (
+              {data?.items.map((tenant: NonNullable<typeof data>['items'][number]) => (
                 <tr key={tenant.id} className="border-b border-border">
                   <td className="px-4 py-3 font-medium">{tenant.name}</td>
                   <td className="px-4 py-3 font-mono text-xs">{tenant.slug}</td>

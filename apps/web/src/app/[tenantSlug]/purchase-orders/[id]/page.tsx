@@ -97,7 +97,7 @@ export default function PurchaseOrderDetailPage() {
 
   const nextStatuses = NEXT_STATUSES[po.status] ?? [];
 
-  const orderTotal = po.items.reduce((sum, item) => {
+  const orderTotal = po.items.reduce((sum: number, item: typeof po.items[number]) => {
     return sum + item.orderedQty * Number(item.supplierCostSnapshot);
   }, 0);
 
@@ -192,7 +192,7 @@ export default function PurchaseOrderDetailPage() {
               </tr>
             </thead>
             <tbody>
-              {po.items.map((item) => {
+              {po.items.map((item: typeof po.items[number]) => {
                 const lineTotal = item.orderedQty * Number(item.supplierCostSnapshot);
                 const isFullyReceived = item.receivedQty >= item.orderedQty;
                 return (
@@ -272,7 +272,7 @@ export default function PurchaseOrderDetailPage() {
                 </tr>
               </thead>
               <tbody>
-                {po.stockIns.map((si) => (
+                {po.stockIns.map((si: typeof po.stockIns[number]) => (
                   <tr key={si.id} className="border-b border-border">
                     <td className="px-4 py-3 font-mono text-xs">{si.referenceNumber}</td>
                     <td className="px-4 py-3 text-xs">{new Date(si.receivedDate).toLocaleDateString()}</td>

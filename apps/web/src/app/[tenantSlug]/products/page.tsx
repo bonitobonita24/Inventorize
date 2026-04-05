@@ -341,7 +341,7 @@ export default function ProductsPage() {
                 </tr>
               </thead>
               <tbody>
-                {data?.items.map((product) => (
+                {data?.items.map((product: NonNullable<typeof data>['items'][number]) => (
                   <tr key={product.id} className="border-b border-border">
                     <td className="px-4 py-3 font-mono text-xs">
                       <Link href={`/${tenantSlug}/products/${product.id}`} className="text-primary underline">

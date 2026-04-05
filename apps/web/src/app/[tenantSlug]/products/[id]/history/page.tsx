@@ -130,7 +130,7 @@ export default function ProductHistoryPage() {
                     </td>
                   </tr>
                 )}
-                {data?.items.map((log) => (
+                {data?.items.map((log: NonNullable<typeof data>['items'][number]) => (
                   <tr key={log.id} className="border-b border-border">
                     <td className="px-4 py-3 text-xs">{new Date(log.performedAt).toLocaleString()}</td>
                     <td className="px-4 py-3">

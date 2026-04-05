@@ -85,8 +85,8 @@ export default function StockInPage() {
     const po = receivablePOs?.find((p) => p.id === poId);
     if (po === undefined) return;
     const items: PendingItem[] = po.items
-      .filter((item) => item.orderedQty - item.receivedQty > 0)
-      .map((item) => ({
+      .filter((item: typeof po.items[number]) => item.orderedQty - item.receivedQty > 0)
+      .map((item: typeof po.items[number]) => ({
         productId: item.productId,
         productName: item.product.name,
         quantity: item.orderedQty - item.receivedQty,
@@ -240,7 +240,7 @@ export default function StockInPage() {
                 <p className="text-sm text-red-600">No products found</p>
               ) : (
                 <div className="space-y-1">
-                  {productSearch.data?.items.map((p) => (
+                  {productSearch.data?.items.map((p: NonNullable<typeof productSearch.data>['items'][number]) => (
                     <button
                       key={p.id}
                       type="button"
@@ -440,7 +440,7 @@ export default function StockInPage() {
               </tr>
             </thead>
             <tbody>
-              {data?.items.map((stockIn) => (
+              {data?.items.map((stockIn: NonNullable<typeof data>['items'][number]) => (
                 <tr key={stockIn.id} className="border-b border-border">
                   <td className="px-4 py-3 font-mono text-xs">{stockIn.referenceNumber}</td>
                   <td className="px-4 py-3 font-mono text-xs text-muted-foreground">

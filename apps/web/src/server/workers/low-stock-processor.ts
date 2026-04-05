@@ -29,7 +29,7 @@ export async function processLowStockCheck(job: Job<LowStockCheckPayload>): Prom
       },
     });
 
-    const lowStock = products.filter((p) => p.currentQuantity <= p.lowStockThreshold);
+    const lowStock = products.filter((p: typeof products[number]) => p.currentQuantity <= p.lowStockThreshold);
 
     if (lowStock.length === 0) {
       console.log(`[low-stock] Tenant ${tenant.slug}: no low stock items`);
@@ -67,12 +67,12 @@ export async function processLowStockCheck(job: Job<LowStockCheckPayload>): Prom
       }
 
       const productList = lowStock
-        .map((p) => `• ${p.name} (${p.productCode}): ${p.currentQuantity} / ${p.lowStockThreshold}`)
+        .map((p: typeof lowStock[number]) => `• ${p.name} (${p.productCode}): ${p.currentQuantity} / ${p.lowStockThreshold}`)
         .join('\n');
 
       const productListHtml = lowStock
         .map(
-          (p) =>
+          (p: typeof lowStock[number]) =>
             `<tr><td style="padding:4px 8px">${p.name}</td><td style="padding:4px 8px;color:#6b7280">${p.productCode}</td>` +
             `<td style="padding:4px 8px;text-align:right;color:#dc2626">${p.currentQuantity}</td>` +
             `<td style="padding:4px 8px;text-align:right">${p.lowStockThreshold}</td></tr>`,

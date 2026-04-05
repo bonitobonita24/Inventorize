@@ -251,7 +251,7 @@ export default function SuppliersPage() {
               </tr>
             </thead>
             <tbody>
-              {data?.items.map((supplier) => (
+              {data?.items.map((supplier: NonNullable<typeof data>['items'][number]) => (
                 <tr key={supplier.id} className="border-b border-border">
                   <td className="px-4 py-3 font-medium">{supplier.name}</td>
                   <td className="px-4 py-3">{supplier.contactPerson ?? '-'}</td>

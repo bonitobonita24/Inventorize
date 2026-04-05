@@ -66,7 +66,7 @@ function SerialPicker({
         {selectedIds.length === required && <span className="ml-2 text-green-600">✓ Complete</span>}
       </p>
       <div className="max-h-40 overflow-y-auto space-y-1">
-        {data.map((serial) => {
+        {data.map((serial: typeof data[number]) => {
           const checked = selectedIds.includes(serial.id);
           const disabled = !checked && selectedIds.length >= required;
           return (
@@ -341,7 +341,7 @@ export default function StockOutPage() {
                 <p className="text-sm text-red-600">No products found</p>
               ) : (
                 <div className="space-y-1">
-                  {productSearch.data?.items.map((p) => (
+                  {productSearch.data?.items.map((p: NonNullable<typeof productSearch.data>['items'][number]) => (
                     <button
                       key={p.id}
                       type="button"
@@ -468,7 +468,7 @@ export default function StockOutPage() {
               </tr>
             </thead>
             <tbody>
-              {data?.items.map((stockOut) => (
+              {data?.items.map((stockOut: NonNullable<typeof data>['items'][number]) => (
                 <tr key={stockOut.id} className="border-b border-border">
                   <td className="px-4 py-3 font-mono text-xs">{stockOut.printableSlipNumber}</td>
                   <td className="px-4 py-3 text-xs">{new Date(stockOut.releasedDate).toLocaleDateString()}</td>

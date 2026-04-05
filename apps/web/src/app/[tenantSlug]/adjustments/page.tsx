@@ -46,7 +46,7 @@ function SerialPicker({ productId, selectedId, onSelect }: {
       className="w-40 rounded border border-border bg-background px-2 py-1 text-xs"
     >
       <option value="">Select serial...</option>
-      {serials.map((s) => (
+      {serials.map((s: typeof serials[number]) => (
         <option key={s.id} value={s.id}>{s.serialValue}</option>
       ))}
     </select>
@@ -162,7 +162,7 @@ export default function AdjustmentsPage() {
                 <p className="text-sm text-red-600">No products found</p>
               ) : (
                 <div className="space-y-1">
-                  {productSearch.data?.items.map((p) => (
+                  {productSearch.data?.items.map((p: NonNullable<typeof productSearch.data>['items'][number]) => (
                     <button
                       key={p.id}
                       type="button"
@@ -291,7 +291,7 @@ export default function AdjustmentsPage() {
               </tr>
             </thead>
             <tbody>
-              {data?.items.map((adj) => (
+              {data?.items.map((adj: NonNullable<typeof data>['items'][number]) => (
                 <tr key={adj.id} className="border-b border-border">
                   <td className="px-4 py-3 text-xs">{new Date(adj.adjustmentDate).toLocaleDateString()}</td>
                   <td className="px-4 py-3">
@@ -306,7 +306,7 @@ export default function AdjustmentsPage() {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-xs">
-                    {adj.items.map((item) => (
+                    {adj.items.map((item: typeof adj.items[number]) => (
                       <div key={item.id}>
                         {item.product?.name ?? item.productId}: {item.quantityDelta > 0 ? '+' : ''}{item.quantityDelta}
                       </div>

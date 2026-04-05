@@ -26,7 +26,7 @@ export default function PlatformAuditLogsPage() {
             </tr>
           </thead>
           <tbody>
-            {data?.items.map((log) => (
+            {data?.items.map((log: NonNullable<typeof data>['items'][number]) => (
               <tr key={log.id} className="border-b border-border">
                 <td className="px-4 py-3 text-xs">{new Date(log.createdAt).toLocaleString()}</td>
                 <td className="px-4 py-3 font-mono text-xs">{log.actionType}</td>

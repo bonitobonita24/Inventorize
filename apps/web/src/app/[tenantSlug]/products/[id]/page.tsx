@@ -68,7 +68,7 @@ function SerialsTab({ productId }: { productId: string }) {
                 </tr>
               </thead>
               <tbody>
-                {data.items.map((serial) => (
+                {data.items.map((serial: typeof data.items[number]) => (
                   <tr key={serial.id} className="border-b border-border">
                     <td className="px-4 py-3 font-mono text-xs">{serial.serialValue}</td>
                     <td className="px-4 py-3">

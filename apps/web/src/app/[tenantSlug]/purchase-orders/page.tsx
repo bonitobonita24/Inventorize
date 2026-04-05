@@ -96,7 +96,7 @@ export default function PurchaseOrdersPage() {
         const updated = { ...item, [field]: value };
         // Auto-fill supplierCostSnapshot when product changes
         if (field === 'productId' && productsData !== undefined) {
-          const product = productsData.items.find((p) => p.id === value);
+          const product = productsData.items.find((p: typeof productsData.items[number]) => p.id === value);
           if (product !== undefined) {
             // supplierCost is conditionally selected based on role — access via cast
             const rawCost = (product as Record<string, unknown>)['supplierCost'];
@@ -193,8 +193,8 @@ export default function PurchaseOrdersPage() {
 
   if (tenantSlug === undefined) return null;
 
-  const activeSuppliers = suppliersData?.items.filter((s) => s.isActive) ?? [];
-  const activeProducts = productsData?.items.filter((p) => p.isActive) ?? [];
+  const activeSuppliers = suppliersData?.items.filter((s: NonNullable<typeof suppliersData>['items'][number]) => s.isActive) ?? [];
+  const activeProducts = productsData?.items.filter((p: NonNullable<typeof productsData>['items'][number]) => p.isActive) ?? [];
 
   return (
     <div className="space-y-6">
@@ -228,7 +228,7 @@ export default function PurchaseOrdersPage() {
                 className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
               >
                 <option value="">— select supplier —</option>
-                {activeSuppliers.map((s) => (
+                {activeSuppliers.map((s: typeof activeSuppliers[number]) => (
                   <option key={s.id} value={s.id}>{s.name}</option>
                 ))}
               </select>
@@ -304,7 +304,7 @@ export default function PurchaseOrdersPage() {
                       className="w-full rounded-md border border-border bg-background px-2 py-2 text-sm"
                     >
                       <option value="">— select —</option>
-                      {activeProducts.map((p) => (
+                      {activeProducts.map((p: typeof activeProducts[number]) => (
                         <option key={p.id} value={p.id}>
                           [{p.productCode}] {p.name}
                         </option>
@@ -407,7 +407,7 @@ export default function PurchaseOrdersPage() {
                 </tr>
               </thead>
               <tbody>
-                {data?.items.map((po) => (
+                {data?.items.map((po: NonNullable<typeof data>['items'][number]) => (
                   <tr key={po.id} className="border-b border-border">
                     <td className="px-4 py-3 font-mono text-xs">
                       <Link href={`/${tenantSlug}/purchase-orders/${po.id}`} className="text-primary underline">

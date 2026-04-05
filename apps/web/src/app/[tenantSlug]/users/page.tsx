@@ -211,7 +211,7 @@ export default function UsersPage() {
                 </tr>
               </thead>
               <tbody>
-                {data?.items.map((user) => (
+                {data?.items.map((user: NonNullable<typeof data>['items'][number]) => (
                   <>
                     <tr key={user.id} className="border-b border-border">
                       <td className="px-4 py-3 font-medium">{user.name}</td>

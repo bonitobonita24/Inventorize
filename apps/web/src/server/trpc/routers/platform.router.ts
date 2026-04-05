@@ -3,6 +3,7 @@
 
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
+import type { Prisma } from '@inventorize/db';
 import { createTRPCRouter, protectedProcedure } from '../trpc';
 import { requireRole } from '../middleware/rbac';
 import { UserRole } from '@inventorize/shared/enums';
@@ -105,7 +106,7 @@ export const platformRouter = createTRPCRouter({
       }
 
       // Atomic: tenant + audit log in one transaction
-      return platformPrisma.$transaction(async (tx) => {
+      return platformPrisma.$transaction(async (tx: Prisma.TransactionClient) => {
         const tenant = await tx.tenant.create({
           data: {
             name: input.name,
@@ -161,7 +162,7 @@ export const platformRouter = createTRPCRouter({
       }
 
       // Create user with no password — they set it via setup link
-      const user = await platformPrisma.$transaction(async (tx) => {
+      const user = await platformPrisma.$transaction(async (tx: Prisma.TransactionClient) => {
         const created = await tx.user.create({
           data: {
             tenantId: input.tenantId,
@@ -245,7 +246,7 @@ export const platformRouter = createTRPCRouter({
       }
 
       // Atomic: status update + audit log in one transaction
-      return platformPrisma.$transaction(async (tx) => {
+      return platformPrisma.$transaction(async (tx: Prisma.TransactionClient) => {
         const updated = await tx.tenant.update({
           where: { id: input.id },
           data: { status: input.status },
@@ -290,7 +291,7 @@ export const platformRouter = createTRPCRouter({
         activeTenants,
         totalUsers,
         totalProducts,
-        tenantUserBreakdown: tenantUserBreakdown.map((t) => ({
+        tenantUserBreakdown: tenantUserBreakdown.map((t: typeof tenantUserBreakdown[number]) => ({
           id: t.id,
           name: t.name,
           slug: t.slug,

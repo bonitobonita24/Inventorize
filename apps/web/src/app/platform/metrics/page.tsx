@@ -52,7 +52,7 @@ export default function PlatformMetricsPage() {
                 </tr>
               </thead>
               <tbody>
-                {breakdown.map((t) => (
+                {breakdown.map((t: typeof breakdown[number]) => (
                   <tr key={t.id} className="border-b border-border last:border-0">
                     <td className="px-4 py-3 font-medium">{t.name}</td>
                     <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{t.slug}</td>
