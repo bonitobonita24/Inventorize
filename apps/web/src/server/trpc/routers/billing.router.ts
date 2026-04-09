@@ -345,6 +345,34 @@ const refundsRouter = createTRPCRouter({
       });
     }),
 
+  // Superadmin: list all refunds across all tenants
+  listAll: superAdminProcedure
+    .input(
+      z.object({
+        page: z.number().int().min(1).default(1),
+        limit: z.number().int().min(1).max(200).default(50),
+        status: z.enum(['requested', 'approved', 'rejected', 'processed', 'failed']).optional(),
+      }).strict(),
+    )
+    .query(async ({ input }) => {
+      const where = input.status !== undefined ? { status: input.status } : {};
+      const [items, total] = await Promise.all([
+        platformPrisma.refund.findMany({
+          where,
+          include: {
+            payment: { include: { subscription: { include: { plan: true } } } },
+            requestedByUser: { select: { id: true, name: true, email: true } },
+            reviewedByUser: { select: { id: true, name: true, email: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+          skip: (input.page - 1) * input.limit,
+          take: input.limit,
+        }),
+        platformPrisma.refund.count({ where }),
+      ]);
+      return { items, total, page: input.page, limit: input.limit, totalPages: Math.ceil(total / input.limit) };
+    }),
+
   // Superadmin: review a refund (approve or reject)
   // On approval: initiates the refund with Xendit and stores xenditRefundId.
   // Xendit then sends XENDIT_REFUND.DONE or XENDIT_REFUND.FAILED webhook to finalise.

@@ -38,6 +38,7 @@ async function TenantShell({
     { href: `/${tenantSlug}/reports`, label: 'Reports' },
     { href: `/${tenantSlug}/audit-logs`, label: 'Audit Logs' },
     { href: `/${tenantSlug}/users`, label: 'Users' },
+    { href: `/${tenantSlug}/billing`, label: 'Billing' },
   ];
 
   return (

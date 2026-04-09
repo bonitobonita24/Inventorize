@@ -25,6 +25,16 @@ export default function PlatformLayout({
               Audit Logs
             </a>
           </li>
+          <li>
+            <a href="/platform/plans" className="block rounded-md px-3 py-2 text-sm hover:bg-accent">
+              Plans
+            </a>
+          </li>
+          <li>
+            <a href="/platform/refunds" className="block rounded-md px-3 py-2 text-sm hover:bg-accent">
+              Refunds
+            </a>
+          </li>
         </ul>
       </nav>
       <main className="flex-1 p-6">{children}</main>
