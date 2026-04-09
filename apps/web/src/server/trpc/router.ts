@@ -12,9 +12,11 @@ import { reportRouter } from './routers/report.router';
 import { auditLogRouter } from './routers/audit-log.router';
 import { platformRouter } from './routers/platform.router';
 import { authRouter } from './routers/auth.router';
+import { billingRouter } from './routers/billing.router';
 
 export const appRouter = createTRPCRouter({
   auth: authRouter,
+  billing: billingRouter,
   product: productRouter,
   supplier: supplierRouter,
   purchaseOrder: purchaseOrderRouter,
