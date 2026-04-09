@@ -14,9 +14,23 @@ export interface EmailNotificationPayload {
   templateData: Record<string, string>;
 }
 
-export type JobPayload = LowStockCheckPayload | EmailNotificationPayload;
+export interface XenditWebhookPayload {
+  webhookType: string;
+  xenditInvoiceId: string | null;
+  xenditRefundId: string | null;
+  externalId: string | null;
+  status: string;
+  amount: number | null;
+  currency: string | null;
+  paidAt: string | null;
+  rawBody: string;
+  receivedAt: string;
+}
+
+export type JobPayload = LowStockCheckPayload | EmailNotificationPayload | XenditWebhookPayload;
 
 export const QUEUE_NAMES = {
   LOW_STOCK_CHECK: 'low-stock-check',
   EMAIL_NOTIFICATIONS: 'email-notifications',
+  XENDIT_WEBHOOK: 'xendit-webhook-processor',
 } as const;

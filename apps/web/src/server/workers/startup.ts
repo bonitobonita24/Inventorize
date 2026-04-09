@@ -4,10 +4,12 @@
 import {
   createLowStockCheckWorker,
   createEmailNotificationsWorker,
+  createXenditWebhookWorker,
   registerScheduledJobs,
 } from '@inventorize/jobs';
 import { processLowStockCheck } from './low-stock-processor';
 import { processEmailNotification } from './email-processor';
+import { processXenditWebhook } from './xendit-processor';
 
 let started = false;
 
@@ -17,7 +19,8 @@ export async function startWorkers(): Promise<void> {
 
   createLowStockCheckWorker(processLowStockCheck);
   createEmailNotificationsWorker(processEmailNotification);
+  createXenditWebhookWorker(processXenditWebhook);
   await registerScheduledJobs();
 
-  console.log('[workers] Low-stock-check and email-notifications workers started');
+  console.log('[workers] Low-stock-check, email-notifications, and xendit-webhook workers started');
 }

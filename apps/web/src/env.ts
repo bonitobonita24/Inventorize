@@ -33,6 +33,10 @@ const envSchema = z.object({
   // Cloudflare Turnstile (bot protection)
   TURNSTILE_SECRET_KEY: z.string().min(1),
   NEXT_PUBLIC_TURNSTILE_SITE_KEY: z.string().min(1),
+
+  // Xendit (payment gateway)
+  XENDIT_SECRET_KEY: z.string().min(1),
+  XENDIT_WEBHOOK_TOKEN: z.string().min(1),
 });
 
 export type Env = z.infer<typeof envSchema>;

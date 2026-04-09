@@ -8,6 +8,7 @@ import { createTRPCRouter, protectedProcedure, tenantProcedure, tenantMutationPr
 import { requireRole } from '../middleware/rbac';
 import { UserRole } from '@inventorize/shared/enums';
 import { platformPrisma, prisma } from '@inventorize/db';
+import { createInvoice as xenditCreateInvoice, createRefund as xenditCreateRefund } from '@/server/lib/xendit';
 
 const superAdminProcedure = protectedProcedure.use(requireRole(UserRole.SUPER_ADMIN));
 
@@ -345,6 +346,8 @@ const refundsRouter = createTRPCRouter({
     }),
 
   // Superadmin: review a refund (approve or reject)
+  // On approval: initiates the refund with Xendit and stores xenditRefundId.
+  // Xendit then sends XENDIT_REFUND.DONE or XENDIT_REFUND.FAILED webhook to finalise.
   review: superAdminProcedure
     .input(
       z.object({
@@ -355,13 +358,14 @@ const refundsRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       const refund = await platformPrisma.refund.findUnique({
         where: { id: input.id },
+        include: { payment: { select: { xenditInvoiceId: true } } },
       });
       if (refund === null || refund.status !== 'requested') {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Resource not found.' });
       }
 
-      return platformPrisma.$transaction(async (tx: Prisma.TransactionClient) => {
-        const updated = await tx.refund.update({
+      await platformPrisma.$transaction(async (tx: Prisma.TransactionClient) => {
+        await tx.refund.update({
           where: { id: input.id },
           data: {
             status: input.decision,
@@ -380,9 +384,86 @@ const refundsRouter = createTRPCRouter({
             afterStateJson: { status: input.decision, reviewedByUserId: ctx.userId! },
           },
         });
-
-        return updated;
       });
+
+      // If approved and the payment has a Xendit invoice, call Xendit to initiate the refund.
+      // The xenditRefundId is stored so the webhook processor can match XENDIT_REFUND.DONE/FAILED.
+      if (input.decision === 'approved' && refund.payment.xenditInvoiceId !== null) {
+        const xenditRefund = await xenditCreateRefund({
+          invoiceId: refund.payment.xenditInvoiceId,
+          amount: Number(refund.amount),
+          reason: refund.reason,
+        });
+
+        await platformPrisma.refund.update({
+          where: { id: input.id },
+          data: { xenditRefundId: xenditRefund.id },
+        });
+      }
+
+      return { id: input.id, status: input.decision };
+    }),
+});
+
+// ─── Tenant-level: Xendit invoice creation ──────────────────────────────────
+
+const xenditRouter = createTRPCRouter({
+  // Create a Xendit invoice for a pending subscription.
+  // The tenant is redirected to invoice_url to complete payment.
+  // On success, Xendit fires INVOICE.PAID → webhook processor activates the subscription.
+  createInvoice: tenantMutationProcedure
+    .use(requireRole(UserRole.ADMIN))
+    .input(
+      z.object({
+        subscriptionId: z.string().cuid(),
+      }).strict(),
+    )
+    .mutation(async ({ ctx, input }) => {
+      // Verify subscription belongs to this tenant and is awaiting payment
+      const subscription = await prisma.tenantSubscription.findFirst({
+        where: { id: input.subscriptionId, tenantId: ctx.tenantId!, status: 'pending' },
+        include: { plan: true },
+      });
+      if (subscription === null) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Resource not found.' });
+      }
+
+      // Get the requesting user's email for the Xendit invoice payer field
+      const user = await platformPrisma.user.findUnique({
+        where: { id: ctx.userId! },
+        select: { email: true },
+      });
+      if (user === null) {
+        throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Something went wrong. Please try again.' });
+      }
+
+      // Create a pending Payment record — externalId sent to Xendit for cross-reference
+      const payment = await prisma.payment.create({
+        data: {
+          tenantId: ctx.tenantId!,
+          subscriptionId: input.subscriptionId,
+          amount: subscription.plan.priceAmount,
+          currency: subscription.plan.currency,
+          status: 'pending',
+        },
+      });
+
+      // Call Xendit — returns an invoice URL to redirect the user to
+      const invoice = await xenditCreateInvoice({
+        externalId: payment.id,
+        amount: Number(subscription.plan.priceAmount),
+        currency: subscription.plan.currency,
+        payerEmail: user.email,
+        description: `Subscription to ${subscription.plan.name}`,
+      });
+
+      // Persist the Xendit invoice ID on the payment record for webhook matching
+      await prisma.payment.update({
+        where: { id: payment.id },
+        data: { xenditInvoiceId: invoice.id },
+      });
+
+      return { invoiceUrl: invoice.invoice_url };
     }),
 });
 
@@ -393,4 +474,5 @@ export const billingRouter = createTRPCRouter({
   subscriptions: subscriptionsRouter,
   payments: paymentsRouter,
   refunds: refundsRouter,
+  xendit: xenditRouter,
 });
