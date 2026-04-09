@@ -3,6 +3,16 @@
 # Include agent attribution in every entry.
 # ---
 
+## 2026-04-10 — Billing Module: Pages + Database Migrations
+- Agent:               CLAUDE_CODE
+- Why:                 Implement billing module UI pages for tenant users and platform superadmin, extend billing.router.ts with refund review procedure, apply two pending Prisma migrations (add_billing_models + add_security_version_to_user)
+- Files added:         apps/web/src/app/[tenantSlug]/billing/page.tsx (tenant billing page: current subscription, available plans admin-only, payment history with refund request button, my refund requests table, refund request modal), apps/web/src/app/platform/plans/page.tsx (superadmin plan management: table of all plans active+inactive, create/edit modal with name/description/price/currency/billingCycle), apps/web/src/app/platform/refunds/page.tsx (superadmin refund review queue: paginated table with status filter, approve/reject modal)
+- Files modified:      apps/web/src/app/[tenantSlug]/layout.tsx (added Billing nav link), apps/web/src/app/platform/layout.tsx (added Plans and Refunds nav links), apps/web/src/server/trpc/routers/billing.router.ts (added refunds.review superAdminProcedure)
+- Files deleted:       none
+- Schema/migrations:   20260409153237_add_billing_models (SubscriptionPlan, TenantSubscription, Payment, Refund models + all indexes + foreign keys), 20260409231805_add_security_version_to_user (securityVersion Int field on User model — V28 session invalidation support)
+- Errors encountered:  (1) zsh glob expansion rejected bracket paths in git add; (2) IDE warned about FormEvent deprecation and unused _ variable in billing/page.tsx
+- Errors resolved:     (1) Quoted all bracket paths with single quotes in git add command; (2) TypeScript tsc --noEmit passes clean — IDE hints only, no actual errors
+
 ## 2026-04-09 — V28 PRODUCT.md propagation (Feature Update)
 - Agent:               CLAUDE_CODE
 - Why:                 PRODUCT.md updated with Xendit payment gateway (subscription billing, invoices, webhooks, refunds, multi-currency PHP/USD/IDR), Cloudflare Turnstile bot protection (managed mode, free tier), Komodo + Traefik deployment model (auto-update staging, manual prod, reverse proxy HTTPS), 4 new entities (SubscriptionPlan, TenantSubscription, Payment, Refund), xendit-webhook-processor job queue, new URLs (/register, /reset-password, /platform/plans, /platform/refunds, /[tenant-slug]/billing), and shared_global_data = SubscriptionPlan. CLAUDE.md upgraded V26 → V28. All governance and config files propagated to match.

@@ -5,8 +5,8 @@
 ## Project Info
 - App Name:     Inventorize
 - App Slug:     inventorize
-- Phase:        Phase 8 — Iterative Buildout (Batches 1–12 complete, V28 propagation done)
-- Last Updated: 2026-04-09 (V28 PRODUCT.md propagation — Xendit, Turnstile, Komodo+Traefik)
+- Phase:        Phase 8 — Iterative Buildout (Batches 1–12 complete + Billing Module pages)
+- Last Updated: 2026-04-10 (Billing module pages + two Prisma migrations applied)
 
 ---
 
@@ -45,8 +45,10 @@
 
 ### Part 3: packages/db (Prisma) — COMPLETE
 - [x] packages/db/package.json + tsconfig.json
-- [x] prisma/schema.prisma (17 models, 8 enums, full relations + tenant-scoped indexes)
+- [x] prisma/schema.prisma (21 models, 8 enums, full relations + tenant-scoped indexes) ✦ Billing: SubscriptionPlan, Subscription, Payment, RefundRequest + securityVersion on User
 - [x] prisma/migrations/20260403121528_init (initial migration — 17 tables, 8 enums)
+- [x] prisma/migrations/20260409153237_add_billing_models (SubscriptionPlan, Subscription, Payment, RefundRequest tables + indexes)
+- [x] prisma/migrations/20260409231805_add_security_version_to_user (securityVersion Int field on User model for session invalidation)
 - [x] prisma/seed.ts (webmaster + demo tenant + demo users/suppliers/products)
 - [x] src/index.ts (Prisma singleton + platformPrisma + AsyncLocalStorage tenant context)
 - [x] src/context.ts (TenantContext + withTenantContext + currentTenantId/currentUserId)
@@ -100,6 +102,7 @@
   - [x] auth.router.ts (NEW Batch 12: public tRPC procedures — validateSetupToken + completeSetup; atomic $transaction: password set + VerificationToken delete)
   - [x] audit-log.router.ts (list with filters)
   - [x] report.router.ts (dashboard KPIs, low stock, movement history, valuation) ✦ Batch 6: inventorySnapshot + inventorySummary added ✦ Batch 10: logExport mutation (audit trail on CSV export) + movementCounts query (period-based stock-in/out counts) ✦ CI fix: removed unused requireRole/UserRole imports; added eslint-disable for ctx.tenantId!/userId! in logExport + movementCounts
+  - [x] billing.router.ts (NEW — billing sub-router aggregator: plans.list/create/update, subscriptions.getCurrent/create, payments.list, refunds.list/request/listAll, xendit.createInvoice, refunds.review superAdminProcedure)
   - [x] platform.router.ts (superadmin: tenant CRUD, metrics, audit — separate Prisma instance) ✦ Batch 8: removed invalid isActive from tenant create ✦ Batch 9: atomic $transaction on createTenant, createTenantAdmin, updateTenantStatus (audit log rolls back on failure) ✦ Batch 10: platformMetrics returns per-tenant active user breakdown ✦ Batch 11: startImpersonation + stopImpersonation mutations with PLATFORM audit logs ✦ Batch 12: createTenantAdmin setup token flow — password removed from input; generates VerificationToken + setup URL in welcome email ✦ CI fix: removed dead toSlug function (no-unused-vars)
 - [x] apps/web/src/app/ — Pages:
   - [x] layout.tsx (root layout with TRPCProvider + ImpersonationBanner)
@@ -120,6 +123,9 @@
   - [x] apps/web/src/app/api/upload/route.ts ✦ Batch 6: non-tRPC multipart upload handler (manual auth + tenant guard + MinIO) — entityType: po-attachment | delivery-receipt
   - [x] [tenantSlug]/users/page.tsx ✦ Batch 3: create form, inline edit, disable/enable toggle, role assignment, search, pagination ✦ Batch 12: password field removed from create form (setup link sent instead)
   - [x] platform/layout.tsx + tenants/page.tsx + audit-logs/page.tsx + metrics/page.tsx ✦ Batch 8: tenants/page.tsx full rewrite — create tenant + first admin onboarding, suspend/reactivate with dialog, search/filter, pagination ✦ Batch 10: metrics/page.tsx per-tenant active user breakdown table ✦ Batch 11: tenants/page.tsx "View as tenant" impersonate button per row ✦ Batch 12: admin password field removed from create-admin form (setup link explanation text added) ✦ CI fix: removed unnecessary as 'active'|'suspended'|'trial' assertion on statusFilter (already narrowed by !== '' guard)
+  - [x] platform/plans/page.tsx (NEW — superadmin plan management: list all plans active/inactive, create/edit modal with name/description/price/currency/billingCycle)
+  - [x] platform/refunds/page.tsx (NEW — superadmin refund review queue: paginated list with status filter, approve/reject modal)
+  - [x] [tenantSlug]/billing/page.tsx (NEW — tenant billing hub: current subscription card, available plans grid (admin-only), payment history table with request-refund action, my refund requests table, refund request modal)
   - [x] auth/setup/page.tsx (NEW Batch 12: client component + Suspense boundary; reads token+email from searchParams; validateSetupToken query on mount; completeSetup mutation → signIn → redirect to /)
 - [x] apps/web/src/server/lib/rate-limit.ts (LRU-based, 4 tiers: public/auth/api/upload)
 - [x] apps/web/src/server/lib/sanitize.ts (DOMPurify — sanitize + sanitizePlainText)
@@ -157,25 +163,22 @@
 
 ## Pending Implementation — V28 PRODUCT.md Changes (governance propagated, code not yet built)
 
-### Billing Module — Prisma Schema + Migrations (PENDING)
-- [ ] SubscriptionPlan model (global — no tenantId): id, name, description, monthlyPricePhp, monthlyPriceUsd, monthlyPriceIdr, maxUsers, maxProducts, maxWarehouses, features (Json), isActive, displayOrder, createdAt, updatedAt
-- [ ] TenantSubscription model (tenant-scoped): id, tenantId, planId, status (active/past_due/canceled/trialing), currentPeriodStart, currentPeriodEnd, xenditSubscriptionId, xenditCustomerId, cancelAtPeriodEnd, createdAt, updatedAt
-- [ ] Payment model (tenant-scoped): id, tenantId, subscriptionId, xenditInvoiceId, xenditPaymentId, amount, currency (PHP/USD/IDR), status (pending/paid/failed/expired/refunded), paidAt, failedReason, createdAt
-- [ ] Refund model (tenant-scoped): id, tenantId, paymentId, xenditRefundId, amount, currency, status (pending/completed/failed), reason, processedAt, createdAt
-- [ ] Migration: add 4 new tables + indexes + foreign keys
+### Billing Module — Prisma Schema + Migrations (COMPLETE)
+- [x] SubscriptionPlan model — id, name, description, priceAmount (Decimal), currency, billingCycle (monthly/yearly), isActive, createdAt, updatedAt
+- [x] Subscription model (tenant-scoped) — id, tenantId, planId, status (active/pending/inactive/cancelled), currentPeriodStart, currentPeriodEnd, xenditSubscriptionId, createdAt, updatedAt
+- [x] Payment model (tenant-scoped) — id, tenantId, subscriptionId, xenditInvoiceId, amount, currency, status (pending/paid/failed/expired/refunded), paidAt, failedReason, createdAt
+- [x] RefundRequest model (tenant-scoped) — id, tenantId, paymentId, requestedById, reviewedById, amount, currency, status (requested/approved/rejected/processed/failed), reason, reviewedAt, createdAt
+- [x] Migration 20260409153237_add_billing_models applied
+- [x] Migration 20260409231805_add_security_version_to_user applied (securityVersion Int on User)
 - [ ] Seed: at least 3 SubscriptionPlan rows (Free, Professional, Enterprise)
 
-### Billing Module — tRPC Routers (PENDING)
-- [ ] subscription-plan.router.ts — platform-level CRUD (super_admin only), public list for pricing page
-- [ ] tenant-subscription.router.ts — current subscription, upgrade/downgrade, cancel
-- [ ] payment.router.ts — payment history list with filters, tenant-scoped
-- [ ] refund.router.ts — request refund, list refunds, tenant-scoped
-- [ ] platform.router.ts — extend with subscription metrics, refund approval
+### Billing Module — tRPC Routers (COMPLETE)
+- [x] billing.router.ts — aggregator with sub-routers: plans (list/create/update), subscriptions (getCurrent/create), payments (list), refunds (list/request/listAll/review), xendit (createInvoice)
 
-### Billing Module — Pages (PENDING)
-- [ ] /platform/plans — manage subscription plans (super_admin)
-- [ ] /platform/refunds — review and approve refund requests (super_admin)
-- [ ] /[tenantSlug]/billing — current plan, usage, payment history, upgrade/cancel
+### Billing Module — Pages (PARTIALLY COMPLETE)
+- [x] /platform/plans — manage subscription plans (super_admin)
+- [x] /platform/refunds — review and approve refund requests (super_admin)
+- [x] /[tenantSlug]/billing — current plan, payment history, request refund, my refund requests
 - [ ] /register — public registration page (new tenant + first admin + plan selection)
 - [ ] /reset-password — public password reset page
 
