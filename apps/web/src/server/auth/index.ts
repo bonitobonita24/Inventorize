@@ -63,6 +63,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           role: user.role as UserRole,
           tenantId: user.tenantId,
           tenantSlug: user.tenant?.slug ?? null,
+          securityVersion: user.securityVersion,
         };
       },
     }),
@@ -77,15 +78,32 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   },
   trustHost: true,
   callbacks: {
-    jwt({ token, user, trigger, session: updatedSession }) {
+    async jwt({ token, user, trigger, session: updatedSession }) {
       if (user !== undefined && user !== null) {
+        // First sign-in — store all fields including securityVersion for stale-session detection
+        const u = user as unknown as Record<string, unknown>;
         token.userId = user.id;
-        token.role = (user as unknown as Record<string, unknown>)['role'] as string;
-        token.tenantId = (user as unknown as Record<string, unknown>)['tenantId'] as string | null;
-        token.tenantSlug = (user as unknown as Record<string, unknown>)['tenantSlug'] as string | null;
+        token.role = u['role'] as string;
+        token.tenantId = u['tenantId'] as string | null;
+        token.tenantSlug = u['tenantSlug'] as string | null;
         token.isImpersonating = false;
         token.originalTenantId = null;
         token.originalTenantSlug = null;
+        token.securityVersion = u['securityVersion'] as number;
+      } else if (typeof token.userId === 'string') {
+        // Subsequent calls — validate securityVersion against DB (V28: force re-auth on role/tenant/status change)
+        const currentUser = await platformPrisma.user.findUnique({
+          where: { id: token.userId },
+          select: { securityVersion: true, isActive: true },
+        });
+        // User deactivated or securityVersion incremented → invalidate session
+        if (
+          currentUser === null ||
+          !currentUser.isActive ||
+          currentUser.securityVersion !== (token.securityVersion as number)
+        ) {
+          return null;
+        }
       }
       // Allow session update via update() call (used by impersonation start/stop)
       if (trigger === 'update' && updatedSession !== undefined && updatedSession !== null) {

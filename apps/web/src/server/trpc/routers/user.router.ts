@@ -192,6 +192,10 @@ export const userRouter = createTRPCRouter({
           if (data.email !== undefined) updateData['email'] = data.email;
           if (data.role !== undefined) updateData['role'] = data.role;
           if (data.isActive !== undefined) updateData['isActive'] = data.isActive;
+          // V28: increment securityVersion on role or status change to invalidate existing sessions
+          if (data.role !== undefined || data.isActive !== undefined) {
+            updateData['securityVersion'] = { increment: 1 };
+          }
           return prisma.user.update({
             where: { id },
             data: updateData as Prisma.UserUncheckedUpdateInput,
@@ -230,9 +234,10 @@ export const userRouter = createTRPCRouter({
           }
 
           const hashedPassword = await bcrypt.hash(input.newPassword, 12);
+          // V28: increment securityVersion on password reset to invalidate existing sessions
           await prisma.user.update({
             where: { id: input.id },
-            data: { hashedPassword },
+            data: { hashedPassword, securityVersion: { increment: 1 } },
           });
           return { success: true };
         },

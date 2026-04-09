@@ -2,6 +2,10 @@
 // Accepts: multipart/form-data with fields: file (File), entityType (string)
 // Returns: { storagePath: string } — store this in the record's attachmentUrl field
 // To download: call stockIn.getAttachmentUrl or purchaseOrder.getAttachmentUrl with the storagePath
+//
+// V28 CSRF: Route Handler that mutates state — Origin header validation applied.
+// tRPC procedures are inherently CSRF-resistant (POST-only JSON + SameSite=lax).
+// This non-tRPC handler accepts multipart/form-data, so Origin must be validated explicitly.
 
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
@@ -10,7 +14,25 @@ import { uploadFile } from '@inventorize/storage';
 
 const ALLOWED_ENTITY_TYPES = new Set(['po-attachment', 'delivery-receipt']);
 
+/** Validates the request Origin matches the expected application origin (CSRF protection). */
+function isOriginAllowed(req: NextRequest): boolean {
+  const origin = req.headers.get('origin');
+  if (origin === null) return false;
+  const appUrl = process.env['NEXTAUTH_URL'] ?? '';
+  try {
+    const expected = new URL(appUrl).origin;
+    return origin === expected;
+  } catch {
+    return false;
+  }
+}
+
 export async function POST(req: NextRequest): Promise<NextResponse> {
+  // V28 CSRF: validate Origin before any auth or data processing
+  if (!isOriginAllowed(req)) {
+    return NextResponse.json({ error: 'Access denied.' }, { status: 403 });
+  }
+
   // Manual auth check — this route bypasses tRPC middleware
   const session = await auth();
   if (session === null || session.user === undefined) {

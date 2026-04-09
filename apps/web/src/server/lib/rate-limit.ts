@@ -39,6 +39,6 @@ export function rateLimit(options?: RateLimitOptions) {
 export const rateLimiters = {
   public: rateLimit({ interval: 60_000, limit: 60 }),
   auth: rateLimit({ interval: 60_000, limit: 10 }),
-  api: rateLimit({ interval: 60_000, limit: 300 }),
+  api: rateLimit({ interval: 60_000, limit: 100 }),
   upload: rateLimit({ interval: 60_000, limit: 10 }),
 };
