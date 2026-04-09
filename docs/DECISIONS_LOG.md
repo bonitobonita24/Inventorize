@@ -119,3 +119,47 @@
 - Rationale: Phase 2.7 GAP 5 — printableSlipNumber format was undefined. Standard slip number
              format requested for warehouse operations.
 - Locked:    yes
+
+## Payment Gateway
+- Type:      🟤 decision
+- Date:      2026-04-09
+- Decision:  Xendit is the platform-wide payment gateway. Multi-currency (PHP, USD, IDR).
+             Subscription billing via Xendit invoices. Webhook verification via x-callback-token
+             (constant-time comparison). Card data never touches our server — Xendit handles PCI-DSS.
+             Test keys for dev/staging, live keys for production only.
+- Rationale: Framework default for SEA markets. Powerbyte operates in PH. Xendit supports all
+             required payment methods (cards, e-wallets, bank transfer, OTC).
+- Locked:    yes
+
+## Shared Global Data
+- Type:      🟤 decision
+- Date:      2026-04-09
+- Decision:  SubscriptionPlan is shared global data (no tenantId). Plans are created/managed by
+             super_admin and visible to all tenants. TenantSubscription, Payment, and Refund are
+             tenant-scoped (have tenantId).
+- Rationale: Subscription plans are platform-level configuration, not tenant business data.
+             Each tenant selects from the same plan catalog.
+- Locked:    yes
+
+## Bot Protection
+- Type:      🟤 decision
+- Date:      2026-04-09
+- Decision:  Cloudflare Turnstile enabled on all public-facing forms (/login, /register,
+             /reset-password). Managed mode. Free tier: 1 widget, prod domain only as hostname.
+             Dev and staging use Cloudflare official test keys (no real widget needed).
+             Server-side siteverify validation mandatory.
+- Rationale: Framework default bot protection. Free tier sufficient. WCAG 2.2 AAA compliant.
+             No CAPTCHA friction for real users.
+- Locked:    yes
+
+## Deployment Model (Komodo + Traefik)
+- Type:      🟤 decision
+- Date:      2026-04-09
+- Decision:  Staging: Komodo auto_update: true — polls Docker Hub for new :staging-latest digests,
+             auto-redeploys. Production: Komodo auto_update: false — human clicks Deploy in Komodo UI
+             after verifying staging. Traefik reverse proxy on staging + prod for automatic HTTPS.
+             App service uses Traefik labels, no host port exposure. Dev compose unchanged.
+             TRAEFIK_NETWORK=proxy. No webhooks needed for recommended deployment path.
+- Rationale: V27 deployment model. Docker Hub is the handoff point between CI and deployment.
+             Eliminates webhook complexity. Human gate on production deploys.
+- Locked:    yes

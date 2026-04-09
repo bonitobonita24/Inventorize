@@ -1,7 +1,17 @@
-# Changelog AI — Spec-Driven Platform V26
+# Changelog AI — Spec-Driven Platform V28
 # Format: ## YYYY-MM-DD — [Phase or Feature Name]
 # Include agent attribution in every entry.
 # ---
+
+## 2026-04-09 — V28 PRODUCT.md propagation (Feature Update)
+- Agent:               CLAUDE_CODE
+- Why:                 PRODUCT.md updated with Xendit payment gateway (subscription billing, invoices, webhooks, refunds, multi-currency PHP/USD/IDR), Cloudflare Turnstile bot protection (managed mode, free tier), Komodo + Traefik deployment model (auto-update staging, manual prod, reverse proxy HTTPS), 4 new entities (SubscriptionPlan, TenantSubscription, Payment, Refund), xendit-webhook-processor job queue, new URLs (/register, /reset-password, /platform/plans, /platform/refunds, /[tenant-slug]/billing), and shared_global_data = SubscriptionPlan. CLAUDE.md upgraded V26 → V28. All governance and config files propagated to match.
+- Files added:         none
+- Files modified:      inputs.yml (payment, turnstile, deployment sections + tech_stack + jobs + shared_global_data), docs/DECISIONS_LOG.md (4 new locked decisions: payment gateway, shared global data, bot protection, deployment model), .env.dev (Xendit placeholder keys, Turnstile test keys), .env.staging (Docker Hub vars uncommented, Traefik vars, Xendit/Turnstile vars), .env.prod (Docker Hub vars uncommented, Traefik vars, Xendit/Turnstile placeholder vars), .env.example (Xendit/Turnstile/Traefik/Docker Hub placeholder entries), project.memory.md (V26 → V28 with integrations section), docs/CHANGELOG_AI.md (this entry), docs/IMPLEMENTATION_MAP.md (pending implementation sections added)
+- Files deleted:       none
+- Schema/migrations:   none (entities not yet scaffolded — will be implemented in Phase 8 next batch)
+- Errors encountered:  none
+- Errors resolved:     Fixed stale "docker.publish: false" comments in .env.staging and .env.prod (should have been active since docker.publish: true was locked in DECISIONS_LOG)
 
 ## 2026-04-05 — CI / Docker pipeline fixes (TypeScript + ESLint)
 - Agent:               CLAUDE_CODE

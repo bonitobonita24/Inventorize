@@ -19,7 +19,7 @@ tenancy:
   mode: multi
   routing: subdirectory
   url_pattern: "/[tenant-slug]"
-  shared_global_data: false
+  shared_global_data: SubscriptionPlan  # plans are global, subscriptions are tenant-scoped
   slug_generation: auto_from_name
   slug_collision: editable_field_with_inline_error
 
@@ -71,6 +71,8 @@ tech_stack:
   queue: bullmq
   storage_dev: minio
   storage_prod: s3_compatible
+  payment_gateway: xendit
+  bot_protection: cloudflare_turnstile
   ui_components: shadcn_ui
   css: tailwind_css
 
@@ -83,7 +85,10 @@ jobs:
       description: Checks currentQuantity <= lowStockThreshold per tenant, triggers alerts
     - name: email-notifications
       cron: null  # event-driven — triggered by low-stock-check and user events
-      description: Sends welcome emails, low stock reports, and system notifications
+      description: Sends welcome emails, low stock reports, payment confirmations, and system notifications
+    - name: xendit-webhook-processor
+      cron: null  # event-driven — triggered on Xendit webhook receipt
+      description: Verifies x-callback-token, updates TenantSubscription/Payment/Refund status
 
 storage:
   enabled: true
@@ -96,6 +101,33 @@ storage:
   path_pattern: "${tenantId}/${entityType}/${randomFilename}"
   serve_files: true  # files are viewable + downloadable through app UI
   svg_html_blocked: true
+
+payment:
+  gateway: xendit
+  currencies:
+    - PHP
+    - USD
+    - IDR
+  methods:
+    - cards
+    - e-wallets
+    - bank_transfer
+    - otc
+  billing_model: subscription  # subscription plans only — no usage-based metering
+  recurring: true  # Xendit Plans API for subscription renewals
+  refunds: full_and_partial
+  webhook_verification: x-callback-token  # constant-time comparison mandatory
+  pci_scope: none  # card data never touches our server — Xendit handles PCI-DSS
+
+turnstile:
+  enabled: true
+  mode: managed  # Cloudflare decides whether to show checkbox
+  protected_pages:
+    - /login
+    - /register
+    - /reset-password
+  free_tier_strategy: 1_widget_prod_only  # dev+staging use test keys, 0 hostnames used
+  server_side_validation: mandatory  # client widget alone provides no protection
 
 mobile:
   enabled: false
@@ -110,6 +142,20 @@ docker:
     - linux/arm64
   build_on_push_to: main
   dev_build: true
+
+deployment:
+  staging:
+    manager: komodo
+    auto_update: true  # polls Docker Hub for new :staging-latest digests
+    reverse_proxy: traefik
+    traefik_network: proxy
+    app_domain: inventorize-staging.powerbyte.app
+  production:
+    manager: komodo
+    auto_update: false  # human clicks Deploy in Komodo UI after verifying staging
+    reverse_proxy: traefik
+    traefik_network: proxy
+    app_domain: inventorize.powerbyte.app
 
 security:
   rate_limits:

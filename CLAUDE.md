@@ -1,4 +1,4 @@
-# SPEC-DRIVEN PLATFORM — V26
+# SPEC-DRIVEN PLATFORM — V28
 
 > **WHAT THIS FILE IS**
 > This is the master prompt for building TypeScript apps with AI agents.
@@ -57,7 +57,7 @@
 
 ## WHO YOU ARE (AGENT ROLE)
 
-You are a **Spec-Driven Platform Architect** operating under **V26 STRICTEST** discipline.
+You are a **Spec-Driven Platform Architect** operating under **V28 STRICTEST** discipline.
 
 ---
 
@@ -340,7 +340,7 @@ This system uses **MODE A (WSL2 native) exclusively**. There is no MODE B. There
 
 **Dev setup (one-time in WSL2 Ubuntu terminal):**
 ```bash
-nvm install 20 && nvm use 20
+nvm install 22 && nvm use 22
 npm install -g pnpm
 ```
 Open project in VS Code with Remote-WSL extension. That is the entire setup.
@@ -511,7 +511,7 @@ in `CHANGELOG_AI.md`. It then:
 2. If no session match → infers COPILOT (if Copilot was active) or HUMAN (manual edit)
 3. Writes reconciliation entry to CHANGELOG_AI.md with correct attribution
 
-**Bootstrap writes `.specstory/specs/v26-master-prompt.md`** — copy of the master prompt
+**Bootstrap writes `.specstory/specs/v28-master-prompt.md`** — copy of the master prompt
 that SpecStory uses for automatic context injection into every session.
 
 **SpecStory config written by Bootstrap:**
@@ -521,7 +521,7 @@ that SpecStory uses for automatic context injection into every session.
   "captureHistory": true,
   "historyDir": ".specstory/history",
   "specsDir": ".specstory/specs",
-  "autoInjectSpec": "v26-master-prompt.md"
+  "autoInjectSpec": "v28-master-prompt.md"
 }
 ```
 
@@ -902,7 +902,7 @@ This formalises the install path for domain-specific knowledge packs.
 **Framework-native domain packs (all optional — install only what your app needs):**
 ```
 spec-driven-aws        → AWS CDK patterns, cost estimation, Serverless/EDA, Bedrock AgentCore
-spec-driven-payments   → Stripe webhooks, idempotency keys, PCI scope isolation, refund flows
+spec-driven-payments   → Xendit webhooks (x-callback-token verification), idempotency keys, PCI scope isolation, refund flows, SEA payment methods (V27 — Xendit is framework default gateway)
 spec-driven-govt       → Audit trail hardening, DICT compliance, fisherfolk/MPA domain terms,
                           multi-level governance patterns (apex org → national agency → LGU)
 spec-driven-erp        → Payroll tax rules, AP/AR double-entry ledger, POS session patterns,
@@ -1160,13 +1160,64 @@ If any requirement conflicts with a feature, security wins.
 3. Webhook secrets MUST be stored in environment variables only — never hardcoded.
 ```
 
-**AUTH DEFAULTS — do not override these Auth.js v5 secure defaults:**
+**SSRF PREVENTION — enforce when server-side code makes outbound HTTP requests (NEW V28):**
+```
+1. NEVER pass user-supplied URLs directly to fetch(), axios, got, or any HTTP client on the server.
+   → If the app fetches external resources (avatar URLs, webhook callbacks, import URLs, link previews):
+     validate the URL against an allowlist of approved domains, OR
+     reject private/internal IP ranges before making the request.
+2. Blocked IP ranges (reject if resolved hostname falls within):
+   → 127.0.0.0/8 (loopback)
+   → 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16 (private RFC 1918)
+   → 169.254.0.0/16 (link-local / cloud metadata — AWS 169.254.169.254 attack vector)
+   → ::1, fc00::/7 (IPv6 loopback and private)
+   → 0.0.0.0/8 (unspecified)
+3. URL parsing: use `new URL(input)` and check the `.hostname` property.
+   NEVER use regex to validate URLs — regex cannot handle all URL encoding edge cases.
+   Resolve the hostname to an IP address BEFORE making the request (DNS rebinding prevention).
+4. If fetching user-provided URLs is a core feature (e.g. link previews, RSS import):
+   → Use a sandboxed proxy service or dedicated worker with network restrictions.
+   → Apply request timeout (≤10 seconds) and response size limit (≤5 MB).
+   → Strip credentials from redirects — do not follow redirects to internal networks.
+
+**Auth DEFAULTS — do not override these Auth.js v5 secure defaults:**
 ```
 1. Session cookies: HttpOnly=true, Secure=true (production), SameSite=lax. Do NOT change these.
 2. Password reset tokens: MUST be time-limited (max 1 hour) and single-use.
 3. Email verification: enforce before any privileged action (role assignment, data export, billing).
 4. Logout: MUST invalidate the session server-side — not just clear the frontend cookie.
 5. Auth secrets: MUST exist in env vars only. NEVER import or reference in any client-side file.
+6. Session invalidation on role or tenant change (NEW V28):
+   → When a user's role changes, tenant membership changes, or account is deactivated:
+     force-invalidate ALL active sessions for that user immediately.
+   → Implement via Auth.js session callback: store a `securityVersion` (integer) on the User model.
+     Increment it on every role/tenant/status change. In the session callback, compare
+     session.securityVersion against the DB value — if stale → force sign-out.
+   → NEVER allow a session with stale role/tenant data to persist — the user must re-authenticate.
+   → This covers: role escalation/de-escalation, tenant removal, account suspension, password change.
+```
+
+**CSRF PROTECTION — framework posture (NEW V28):**
+```
+tRPC uses POST-based RPC for all mutations. Combined with Auth.js v5 SameSite=lax cookies,
+the standard tRPC + Auth.js stack is inherently CSRF-resistant — no additional CSRF tokens needed.
+
+WHY: Traditional CSRF attacks exploit GET-based state changes or cookie-based POST to a different origin.
+tRPC mutations are POST-only to /api/trpc/* with JSON Content-Type. SameSite=lax prevents the browser
+from sending cookies on cross-origin POST requests. Together these eliminate the CSRF vector.
+
+EXCEPTION — Route Handlers (/api/**/route.ts):
+Route Handlers bypass tRPC and receive raw HTTP requests. If a Route Handler:
+  (a) accepts POST/PUT/DELETE with cookie-based auth, AND
+  (b) performs a state-changing operation (not just webhook receipt)
+→ It MUST implement one of:
+  - Double-submit cookie pattern (CSRF token in both cookie and header)
+  - Origin/Referer header validation against known domains
+  - Custom X-Requested-With header check
+Webhook endpoints are exempt — they use signature verification (x-callback-token, HMAC) instead.
+
+DO NOT add CSRF tokens to tRPC procedures — it adds complexity with zero security benefit.
+DO verify CSRF protection on every non-tRPC Route Handler that mutates state.
 ```
 
 **TENANT MIDDLEWARE SAFETY — enforce in src/middleware.ts:**
@@ -1211,6 +1262,121 @@ If any requirement conflicts with a feature, security wins.
    → Do NOT wait for the next heartbeat — role changes are security-critical.
 ```
 
+**XENDIT PAYMENT WEBHOOK SECURITY — CONDITIONAL (only when payment.gateway: xendit):**
+```
+1. EVERY incoming Xendit webhook MUST verify the x-callback-token header:
+   → Compare request.headers['x-callback-token'] against XENDIT_WEBHOOK_TOKEN env var
+   → Use constant-time comparison (crypto.timingSafeEqual or equivalent) — never ===
+   → Reject immediately with HTTP 401 if token does not match
+   → Log rejection to audit trail (IP, timestamp, attempted payload — NOT the token value)
+
+2. Webhook handlers MUST be idempotent:
+   → Store the transaction ID (payment_id / invoice_id) with a processed flag
+   → On duplicate webhook: return HTTP 200 (acknowledge) but skip business logic
+   → Use DB unique constraint on transaction_id to enforce at storage level
+   → Xendit retries up to 6 times with exponential backoff on non-2xx responses
+
+3. Webhook handlers MUST validate payload integrity:
+   → Verify the payment amount matches what YOUR system requested (not what webhook says)
+   → Verify the transaction ID exists in your DB (was created by your system)
+   → NEVER trust webhook payload alone for product/service provisioning
+
+4. Webhook endpoint security:
+   → Route: /api/webhooks/xendit (tRPC bypassed — raw HTTP handler for webhook)
+   → Method: POST only
+   → No auth middleware (Xendit cannot provide JWT) — x-callback-token IS the auth
+   → Rate limited separately from user-facing endpoints
+   → NEVER expose webhook endpoint URL in client-side code
+
+5. Xendit API key handling:
+   → Secret key: server-side ONLY — never in NEXT_PUBLIC_* env vars, never in client bundles
+   → Public key: safe for client-side tokenization (card data capture) — but still stored in .env
+   → Auth format: Basic Auth with secret key as username, empty password, Base64 encoded
+   → NEVER log API keys in CHANGELOG_AI, agent-log, or any governance doc
+
+6. Queue webhook processing (RECOMMENDED for production):
+   → Receive webhook → validate x-callback-token → enqueue to BullMQ → return 200 immediately
+   → Worker processes the payment update asynchronously (prevents timeout on slow DB writes)
+   → This matches Xendit's own recommendation for high-volume merchants
+
+Xendit docs: https://docs.xendit.co/docs/handling-webhooks
+Xendit API: https://docs.xendit.co/apidocs
+Integration security: https://docs.xendit.co/docs/integration-security
+```
+
+**CLOUDFLARE TURNSTILE BOT PROTECTION — FRAMEWORK DEFAULT (V27):**
+```
+Turnstile is the framework default bot protection. It replaces CAPTCHA with invisible or managed
+challenges. Enabled by default on all public-facing forms. WCAG 2.2 AAA compliant.
+
+1. WHICH PAGES TO PROTECT (strategy to stay within FREE tier — 1 widget, 3 hostnames):
+   ALWAYS PROTECT (public-facing, unauthenticated):
+   → Login page (/login) — prevents credential stuffing
+   → Registration page (/register) — prevents mass fake account creation
+   → Password reset (/forgot-password) — prevents email enumeration
+   → Contact / inquiry forms — prevents spam
+   → Payment pages (if Xendit enabled) — prevents card testing
+   → Any public API endpoint that accepts unauthenticated POST input
+   DO NOT PROTECT (already behind auth — use rate limiting instead):
+   → Authenticated dashboard pages (user already proved they're human at login)
+   → Internal admin pages behind RBAC (protected by L3 RBAC + L5 AuditLog)
+   → API endpoints called by authenticated frontend (JWT + rate limiting suffices)
+   → Mobile API endpoints (use mobile implementation pattern instead if needed)
+
+2. WIDGET BUDGET STRATEGY (FREE tier: 20 widgets, 10 hostnames per widget):
+   DEFAULT: 1 widget per app. Same sitekey on all protected pages.
+   Hostnames on REAL widget: ${prod_domain} ONLY (dev + staging use test keys — no hostname needed).
+   This means 1 of 10 hostname slots used per app. Maximum budget efficiency.
+   MULTI-TENANT SaaS with custom domains:
+   → If tenants use subdomains of YOUR domain (e.g. *.yourapp.com): 1 widget, add *.yourapp.com
+   → If tenants bring their own custom domains: each unique domain = 1 hostname.
+     Up to 9 custom domains + your prod domain = 10 hostnames on 1 widget.
+     More than 9 custom domains = need a 2nd widget (still within 20 widget budget).
+   → Ask during Phase 2 Section H: "How many unique hostnames will your app use?"
+   → Lock hostname plan in DECISIONS_LOG.md under "Turnstile widget allocation"
+
+3. CLIENT-SIDE IMPLEMENTATION (Next.js + React):
+   → Use explicit rendering via @marsidev/react-turnstile (React component — npm install)
+   → Render <Turnstile siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY} /> in protected forms
+   → Widget mode: "managed" (default — Cloudflare decides whether to show checkbox)
+   → On success: callback returns token string → include in form submission or tRPC mutation
+   → On expiry: token expires after 300 seconds — call turnstile.reset() to regenerate
+   → The api.js script MUST be loaded from https://challenges.cloudflare.com/turnstile/v0/api.js
+     NEVER proxy, cache, or self-host this script — Turnstile will break on updates
+   → CSP: add challenges.cloudflare.com to script-src. Turnstile supports strict-dynamic with nonce.
+   → Performance hint: add <link rel="preconnect" href="https://challenges.cloudflare.com"> in <head>
+
+4. SERVER-SIDE VALIDATION (MANDATORY — client-side widget alone provides NO protection):
+   → Create a shared tRPC middleware or utility function: verifyTurnstileToken(token, remoteIp)
+   → POST to: https://challenges.cloudflare.com/turnstile/v0/siteverify
+     Body: { secret: TURNSTILE_SECRET_KEY, response: token, remoteip: clientIp }
+   → Response: { success: boolean, error-codes: string[], challenge_ts: string, hostname: string }
+   → On success=false: reject the request with HTTP 400 — do NOT proceed with form logic
+   → Token characteristics: max 2048 chars, valid 300 seconds, SINGLE USE (cannot validate twice)
+   → Validate hostname in response matches expected domain (prevents token replay across sites)
+   → TURNSTILE_SECRET_KEY is server-only — NEVER in NEXT_PUBLIC_* env vars
+
+5. DEV + STAGING ENVIRONMENTS (test keys — no real Cloudflare widget needed):
+   → .env.dev AND .env.staging both use Cloudflare's official test keys (always passes)
+   → This means only production needs real keys — saves hostname budget on the widget
+   → Test sitekey 1x00000000000000000000AA + secret 1x0000000000000000000000000000000AA
+   → For testing failure: use 2x00000000000000000000AB + 2x0000000000000000000000000000000AB
+   → For testing interactive challenge: use 3x00000000000000000000FF
+   → Staging is a real-world environment but Turnstile test keys still work — they always pass
+     This is intentional: staging tests your app logic, not Cloudflare's bot detection
+
+6. CONTENT SECURITY POLICY (update security headers when Turnstile enabled):
+   → script-src: add https://challenges.cloudflare.com (or use strict-dynamic with nonce)
+   → frame-src: add https://challenges.cloudflare.com
+   → Phase 4 Part 3 (security headers) must include these CSP entries when turnstile.enabled: true
+
+Docs: https://developers.cloudflare.com/turnstile/
+Client-side: https://developers.cloudflare.com/turnstile/get-started/client-side-rendering/
+Server-side: https://developers.cloudflare.com/turnstile/get-started/server-side-validation/
+Testing: https://developers.cloudflare.com/turnstile/troubleshooting/testing/
+CSP: https://developers.cloudflare.com/turnstile/reference/content-security-policy/
+```
+
 **SECURE PRODUCTION DEFAULTS — verify before any deployment:**
 ```
 1. Prisma Studio: NEVER exposed in staging or production. Dev only.
@@ -1219,6 +1385,13 @@ If any requirement conflicts with a feature, security wins.
 4. Feature flags: default to OFF. Enable explicitly per environment.
 5. CORS: restricted to known domains per environment. NEVER use wildcard (*) in production.
 6. Dev-only env vars (NEXT_PUBLIC_DEBUG, etc.): stripped from staging/prod .env files.
+7. Rate limiting: ALL public-facing routes MUST have rate limiting — not just auth endpoints (NEW V28).
+   → Auth endpoints (login, register, password reset): strict — ≤10 req/min per IP.
+   → Authenticated API (tRPC protectedProcedure): moderate — ≤100 req/min per user.
+   → Public pages and unauthenticated endpoints: lenient — ≤300 req/min per IP.
+   → Use a tiered middleware approach. The rate limiter generated in Phase 4 Part 5 already
+     has `rateLimiters.auth`, `.api`, `.public`, `.upload` tiers — ensure ALL tRPC procedures
+     use the appropriate tier, not just auth endpoints.
 ```
 
 ---
@@ -1251,13 +1424,13 @@ Step 1 — Folder structure
 
 Step 2 — CLAUDE.md (copy of master prompt — auto-loads every session)
   Cline writes CLAUDE.md from the pasted prompt content.
-  Also writes .specstory/specs/v26-master-prompt.md for SpecStory injection.
+  Also writes .specstory/specs/v28-master-prompt.md for SpecStory injection.
 
 Step 3 — .clinerules (Cline reads this before every task)
   Write the file at .clinerules with EXACTLY this content:
 
   ```
-  # Spec-Driven Platform V26 — Cline Rules
+  # Spec-Driven Platform V28 — Cline Rules
   # This file is read by Cline before every task. Follow every instruction exactly.
 
   ## BEFORE ANY ACTION — MANDATORY SEQUENCE
@@ -1437,6 +1610,7 @@ Step 3 — .clinerules (Cline reads this before every task)
   - Staging and prod servers NEVER clone from GitHub, NEVER run pnpm install, NEVER build source.
   - They ONLY run: docker compose pull → docker compose up -d using pre-built Docker Hub images.
   - IF a Feature Update accidentally adds build: to a staging/prod compose file → remove it immediately.
+  - Staging and prod app services use Traefik labels for routing — no host ports exposed. Dev app service keeps direct port mapping (V27).
 
   ## GOVERNANCE WRITES — MANDATORY (non-blocking — agent self-verifies)
   - Append to CHANGELOG_AI.md after implementation — not during, not before.
@@ -1536,7 +1710,7 @@ Step 4 — .cline/tasks/ — 8 separate task files (NEW V14 — one per Phase 4 
 
 Step 5 — .cline/memory/lessons.md (structured template — Rule 18 format)
   Cline writes lessons.md with the typed entry format header AND one pre-seeded gotcha:
-  # Lessons Memory — Spec-Driven Platform V26
+  # Lessons Memory — Spec-Driven Platform V28
   # Entry format: ## YYYY-MM-DD — [ICON] [Title]
   # Types: 🔴 gotcha | 🟡 fix | 🟤 decision | ⚖️ trade-off | 🟢 change
   # READ ORDER: 🔴 first → 🟤 second → rest by relevance
@@ -1595,8 +1769,8 @@ Step 8 — Bootstrap files
   # Code review graph (machine-local)
   .code-review-graph/
   ```
-  .nvmrc: write `20`
-  package.json: minimal bootstrap (pnpm@9.12.0, name from inputs.yml slug)
+  .nvmrc: write `22`
+  package.json: minimal bootstrap (pnpm@10, name from inputs.yml slug)
   ⚠ CREDENTIALS.md is in .gitignore from Step 8. Step 16 appends env files. Both are required.
 
 Step 9 — WSL2 dev environment validation (MODE A only)
@@ -1639,7 +1813,7 @@ Step 11 — .specstory/config.json (NEW V11 — SpecStory passive capture config
     "captureHistory": true,
     "historyDir": ".specstory/history",
     "specsDir": ".specstory/specs",
-    "autoInjectSpec": "v26-master-prompt.md"
+    "autoInjectSpec": "v28-master-prompt.md"
   }
 
 Step 12 — Governance doc templates
@@ -1682,7 +1856,7 @@ Step 15 — Human quick-log task (Log Lesson command)
     5) ICON="🟢 change" ;;
     *) ICON="🟢 change" ;;
   esac
-  echo "Short title (e.g. 'pnpm install failed in WSL2 — needed node 20 via nvm'):"
+  echo "Short title (e.g. 'pnpm install failed in WSL2 — needed node 22 via nvm'):"
   read TITLE
   echo "Affected files (comma-separated, or 'none'):"
   read FILES
@@ -1751,10 +1925,10 @@ Step 17 — .github/skills/ directory + spec-driven-core skill (NEW V19)
 
   ---
   name: spec-driven-core
-  description: Core framework rules for building TypeScript enterprise SaaS apps with Spec-Driven Platform V26. Load when starting any Phase 4-8 task, Feature Update, or governance action.
+  description: Core framework rules for building TypeScript enterprise SaaS apps with Spec-Driven Platform V28. Load when starting any Phase 4-8 task, Feature Update, or governance action.
   ---
 
-  # Spec-Driven Platform V26 — Core Rules Compact Reference
+  # Spec-Driven Platform V28 — Core Rules Compact Reference
 
   ## MANDATORY READ ORDER (do not skip, do not reorder)
   0. .cline/STATE.md — FIRST. Answers "where am I right now?"
@@ -1851,13 +2025,46 @@ Step 18 — Credential Collection Gate (NEW V23) ← BLOCKING: do not advance to
   ── SECTION 4: Komodo Deployment ─────────────────────────────
   (Required if deploying staging/prod via Komodo — skip if not using Komodo)
   4a. Komodo UI URL (e.g. http://your-server-ip:9120):
-  4b. Komodo Webhook Secret (KOMODO_WEBHOOK_SECRET from your Komodo Core config):
-  4c. Staging Stack webhook URL (from Komodo UI → Stacks → [stack] → Config → Webhooks):
-  4d. Production Stack webhook URL:
+  4b. [OPTIONAL] Komodo Webhook Secret (skip if using auto-update for staging + manual deploy for production — recommended V27 model):
+  4c. [OPTIONAL] Staging Stack webhook URL (skip if using auto-update — recommended):
+  4d. [OPTIONAL] Production Stack webhook URL (skip if using manual deploy from Komodo UI — recommended):
+
+  ── SECTION 4.5: Payment Gateway — Xendit ────────────────────
+  (Required if app accepts payments — skip if payment.gateway is not declared in PRODUCT.md)
+  (Xendit is the framework default gateway for all SEA markets)
+  4e. Xendit Secret API Key (TEST environment — from dashboard.xendit.co → Settings → API Keys):
+  4f. Xendit Secret API Key (LIVE/PRODUCTION environment):
+  4g. Xendit Public API Key (TEST environment):
+  4h. Xendit Public API Key (LIVE/PRODUCTION environment):
+  4i. Xendit Webhook Verification Token (from dashboard.xendit.co → Settings → Developers → Callbacks):
+      ⚠ This token appears as x-callback-token in webhook headers — used to verify webhook authenticity.
+      ⚠ SAME token for both test and live environments (Xendit uses one token per account).
+  Note: Xendit uses Basic Auth (secret key as username, empty password). The framework handles encoding.
+  Docs: https://docs.xendit.co/apidocs · Dashboard: https://dashboard.xendit.co
+
+  ── SECTION 4.6: Bot Protection — Cloudflare Turnstile ───────
+  (Framework default — enabled for all apps unless explicitly opted out)
+  (FREE tier: 20 widgets, 10 hostnames per widget — sufficient for most apps)
+  4j. Cloudflare account email (dash.cloudflare.com):
+  4k. Turnstile Site Key (from dash.cloudflare.com → Turnstile → Add Widget → copy Site Key):
+      ⚠ This is the PUBLIC key — safe for client-side code (rendered in HTML).
+      Widget mode: select "Managed" (recommended). Widget name: use ${app_slug}.
+      Allowed hostnames: add ONLY ${prod_domain} (dev + staging use test keys — no hostname needed).
+      This saves hostname budget: 1 of 10 slots used instead of 3.
+  4l. Turnstile Secret Key (from the same widget page → copy Secret Key):
+      ⚠ This is the SERVER-ONLY key — used for siteverify API calls. Never expose client-side.
+  Note for dev environment: Cloudflare provides test keys that work on localhost without a real widget.
+    Test sitekey (always passes):  1x00000000000000000000AA
+    Test secret  (always passes):  1x0000000000000000000000000000000AA
+    Test sitekey (always blocks):  2x00000000000000000000AB
+    Test secret  (always blocks):  2x0000000000000000000000000000000AB
+    Test sitekey (force interactive): 3x00000000000000000000FF
+  Decision: use TEST keys in .env.dev, REAL keys in .env.staging/.env.prod.
+  Docs: https://developers.cloudflare.com/turnstile/
 
   ── SECTION 5: Third-Party API Keys ──────────────────────────
   (Add any API keys your app needs — these vary per project)
-  5a. Any third-party API keys needed? (e.g. Stripe, Twilio, Google, etc.)
+  5a. Any third-party API keys needed? (e.g. Twilio, Google Maps, OpenAI, etc. — Xendit already collected in Section 4.5 above)
       List key name and value, or type NONE:
 
   Type your answers and I will generate all service credentials and write CREDENTIALS.md.
@@ -1918,7 +2125,7 @@ Step 18 — Credential Collection Gate (NEW V23) ← BLOCKING: do not advance to
 
      ```markdown
      # CREDENTIALS MASTER LIST
-     # Generated by Bootstrap Step 18 — Spec-Driven Platform V26
+     # Generated by Bootstrap Step 18 — Spec-Driven Platform V28
      # ⚠️  GITIGNORED — NEVER commit this file
      # ⚠️  NEVER paste into any AI chat, LLM, or log file
      # ⚠️  Treat like a password manager export — store securely
@@ -1963,9 +2170,9 @@ Step 18 — Credential Collection Gate (NEW V23) ← BLOCKING: do not advance to
      |------------------------------|--------------------------------|--------------------|
      | DOCKERHUB_USERNAME           | [from Section 2a]              | Docker image push  |
      | DOCKERHUB_TOKEN              | [from Section 2b]              | Docker image push  |
-     | KOMODO_STAGING_WEBHOOK_URL   | [from Section 4c]              | Auto staging deploy|
-     | KOMODO_PROD_WEBHOOK_URL      | [from Section 4d]              | Prod deploy trigger|
-     | KOMODO_WEBHOOK_SECRET        | [from Section 4b]              | Webhook auth       |
+     | KOMODO_STAGING_WEBHOOK_URL   | [from Section 4c]              | OPTIONAL — only if using webhook deploy (V27: auto-update recommended instead) |
+     | KOMODO_PROD_WEBHOOK_URL      | [from Section 4d]              | OPTIONAL — only if using webhook deploy (V27: manual deploy from Komodo UI recommended) |
+     | KOMODO_WEBHOOK_SECRET        | [from Section 4b]              | OPTIONAL — only if using webhook deploy |
 
      ⚠ None of these are generated by this tool — all come from external services.
      Add them to GitHub before first push to main or docker-publish.yml will fail.
@@ -2064,14 +2271,59 @@ Step 18 — Credential Collection Gate (NEW V23) ← BLOCKING: do not advance to
 
      ## 🦎 Komodo (Deployment Manager)
 
-     | Field                      | Value               |
-     |----------------------------|---------------------|
-     | Komodo UI URL              | [from Section 4a]   |
-     | Webhook Secret             | [from Section 4b]   |
-     | Staging Stack Webhook URL  | [from Section 4c]   |
-     | Prod Stack Webhook URL     | [from Section 4d]   |
+     | Field                      | Value               | Required? |
+     |----------------------------|---------------------|-----------|
+     | Komodo UI URL              | [from Section 4a]   | Yes       |
+     | Webhook Secret             | [from Section 4b]   | OPTIONAL (V27) |
+     | Staging Stack Webhook URL  | [from Section 4c]   | OPTIONAL (V27) |
+     | Prod Stack Webhook URL     | [from Section 4d]   | OPTIONAL (V27) |
 
+     V27 deployment model (recommended):
+     - Staging: Komodo auto_update: true — polls Docker Hub for new :staging-latest images. No webhook needed.
+     - Production: Manual deploy from Komodo UI — human clicks Deploy after verifying staging. No webhook needed.
+     - Webhook fields are only needed if you prefer the legacy webhook-triggered deployment path.
      See Scenario 32 for full Komodo setup and Stack configuration guide.
+
+     ---
+
+     ## 💳 Xendit (Payment Gateway)
+     [CONDITIONAL — include only if payment.gateway: xendit in inputs.yml]
+
+     | Field                         | Value                    | Environment |
+     |-------------------------------|--------------------------|-------------|
+     | Secret API Key (TEST)         | [from Section 4e]        | dev         |
+     | Secret API Key (LIVE)         | [from Section 4f]        | staging/prod|
+     | Public API Key (TEST)         | [from Section 4g]        | dev         |
+     | Public API Key (LIVE)         | [from Section 4h]        | staging/prod|
+     | Webhook Verification Token    | [from Section 4i]        | all         |
+
+     ⚠ Secret keys grant full API access — NEVER expose in client-side code or git.
+     ⚠ Public keys are safe for client-side (tokenization only) — but still gitignored via .env files.
+     ⚠ Webhook token is the x-callback-token header value — verify on EVERY incoming webhook.
+     Dashboard: https://dashboard.xendit.co → Settings → API Keys
+     Docs: https://docs.xendit.co/apidocs
+     Webhook setup: https://docs.xendit.co/docs/handling-webhooks
+
+     ---
+
+     ## 🛡️ Cloudflare Turnstile (Bot Protection)
+
+     | Field                    | Value                         | Environment    |
+     |--------------------------|-------------------------------|----------------|
+     | Cloudflare Account       | [from Section 4j]             | —              |
+     | Site Key (TEST)          | 1x00000000000000000000AA      | dev + staging  |
+     | Secret Key (TEST)        | 1x0000000000000000000000000000000AA | dev + staging |
+     | Site Key (LIVE)          | [from Section 4k]             | prod ONLY      |
+     | Secret Key (LIVE)        | [from Section 4l]             | prod ONLY      |
+     | Widget Mode              | Managed (recommended)         | all            |
+     | Widget Name              | ${app_slug}                   | —              |
+
+     Allowed hostnames on widget: ${prod_domain} ONLY (dev + staging use test keys — no hostname needed).
+     This saves hostname budget: 1 of 10 slots used per app instead of 3.
+     ⚠ Site Key is PUBLIC — appears in HTML. Secret Key is SERVER-ONLY — never in client bundles.
+     ⚠ Dev uses Cloudflare's official test keys — no real widget needed for localhost development.
+     Dashboard: https://dash.cloudflare.com → Turnstile
+     Docs: https://developers.cloudflare.com/turnstile/
 
      ---
 
@@ -2101,7 +2353,7 @@ Step 18 — Credential Collection Gate (NEW V23) ← BLOCKING: do not advance to
 
   C) Append to .cline/memory/agent-log.md:
      BOOTSTRAP | Step 18 | Credential Collection Gate complete.
-     Human-provided: GitHub username, Docker Hub username, SMTP host, Komodo URLs.
+     Human-provided: GitHub username, Docker Hub username, SMTP host, Komodo URLs, Xendit API keys (if payment.gateway: xendit), Turnstile keys.
      AI-generated: DB passwords (×3 envs), PgBouncer passwords (×3), Valkey passwords (×3),
      MinIO keys (×3), pgAdmin passwords (×3), Auth secrets (×3), webmaster password.
      CREDENTIALS.md written. All env files will be updated in Phase 3.
@@ -2117,8 +2369,8 @@ Next steps:
 1. Copy your completed docs/PRODUCT.md into the docs/ folder now.
    (If you have not written it yet, use the Planning Assistant in claude.ai first)
 2. Set up your dev environment if not already done (Phase 1 — optional if already set up):
-   WSL2 terminal → nvm install 20 && npm install -g pnpm → open project with VS Code Remote-WSL
-   Skip this step if Node 20, pnpm, and VS Code Remote-WSL are already installed.
+   WSL2 terminal → nvm install 22 && npm install -g pnpm → open project with VS Code Remote-WSL
+   Skip this step if Node 22, pnpm, and VS Code Remote-WSL are already installed.
 3. Say "Start Phase 2" in Claude Code to begin the discovery interview.
    Or say "Start Phase 4" in Cline if you already have a confirmed PRODUCT.md and inputs.yml.
 4. For SocratiCode: Docker must be running (Docker Desktop via WSL2 — start Docker Desktop on Windows)
@@ -2150,14 +2402,14 @@ Next steps:
 ## PHASE 1 — SET UP DEV ENVIRONMENT (OPTIONAL — skip if already done)
 **Who:** You | **Where:** WSL2 terminal — this is the only step agents cannot do
 
-**One-time setup. Skip entirely if Node 20, pnpm, and VS Code Remote-WSL are already installed.**
+**One-time setup. Skip entirely if Node 22, pnpm, and VS Code Remote-WSL are already installed.**
 
 WSL2 native is the only supported dev environment.
 Run Node + pnpm natively in WSL2. Only backing services run in Docker Compose.
 This eliminates all devcontainer permission layers and shell server crashes.
 
 ```
-Windows → WSL2 Ubuntu → Node 20 (nvm) + pnpm native
+Windows → WSL2 Ubuntu → Node 22 (nvm) + pnpm native
                       → Docker Desktop (backing services only)
                             postgresql, valkey, minio, mailhog
 ```
@@ -2165,7 +2417,7 @@ Windows → WSL2 Ubuntu → Node 20 (nvm) + pnpm native
 Setup (one-time in WSL2 Ubuntu terminal):
 ```bash
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
-nvm install 20 && nvm use 20 && npm install -g pnpm
+nvm install 22 && nvm use 22 && npm install -g pnpm
 ```
 
 Open project in VS Code via Remote-WSL extension. Run `pnpm dev` in WSL2 terminal.
@@ -2244,12 +2496,37 @@ SECTION F — Background Jobs (skip if none declared)
 SECTION G — Reporting (skip if none declared)
 □ KPIs? Chart types? Export formats?
 
+SECTION G2 — Payment Gateway (skip if app does not accept payments)
+□ Does this app accept payments from users? (yes / no — skip section entirely if no)
+□ Payment gateway: Xendit (framework default for all SEA markets — ID, PH, MY, TH, VN)
+  IF yes and Xendit is acceptable: lock `payment.gateway: xendit` in DECISIONS_LOG.md.
+  IF the user explicitly requests a different gateway (e.g. Stripe, PayMongo): ask why, then lock.
+  Xendit is the default because Powerbyte operates in PH and framework targets SEA.
+□ Payment methods needed? (cards, e-wallets, bank transfer, OTC / over-the-counter, QR)
+□ Recurring payments / subscriptions needed? (Xendit supports recurring via Plans API)
+□ Refund support needed? (full / partial)
+□ Multi-currency? (default: single currency per deployment region)
+  → Write answers to PRODUCT.md Integrations section under "Payment Gateway"
+  → Phase 3 generates payment.* fields in inputs.yml
+  → Bootstrap Step 18 Section 4.5 collects Xendit API keys
+
 SECTION H — Security & Governance
 □ Which events need audit logs? (login, record CRUD, role changes, etc.)
 □ Data retention period, GDPR export/delete requirements?
 □ CORS allowed origins per environment?
 □ Rate limiting needed? (public / auth / upload endpoints)
 □ CSRF approach (cookie-based SameSite / header token)?
+□ Cloudflare Turnstile bot protection (V27 — framework default, FREE tier):
+  Turnstile is enabled by default on all public-facing forms. No CAPTCHA shown to users.
+  Protected pages: login, registration, password reset, contact forms, payment pages (if Xendit enabled).
+  Widget mode: Managed (recommended — Cloudflare auto-decides whether to show a checkbox).
+  FREE tier limits: 20 widgets (1 per app), 10 hostnames per widget.
+  Hostname strategy: only prod domain registered on widget (dev + staging use test keys — 0 hostnames).
+  This means 1 hostname used per app. For SaaS with custom tenant domains, each domain = 1 more hostname.
+  IF the user explicitly opts out: set turnstile.enabled: false in DECISIONS_LOG.md.
+  IF multi-tenant SaaS with custom domains: ask how many unique hostnames — may need multiple widgets.
+  → Lock in DECISIONS_LOG.md under "Bot protection": turnstile enabled, widget mode, protected pages list.
+  → Bootstrap Step 18 Section 4.6 collects Turnstile sitekey + secret key.
 
 SECTION I — Infrastructure
 □ Compose services needed? External in production? K8s confirm disabled?
@@ -2281,11 +2558,13 @@ SECTION I — Infrastructure
     • GitHub Actions (automatic): pushes :latest + :sha on every merge to main
     • push.sh (manual): bash deploy/compose/push.sh dev → staging → prod
     Both coexist. COMMANDS.md documents all push commands for quick reference.
-  Note: If using Komodo for staging/prod deployment (NEW V23 — recommended):
-    Additional GitHub Secrets needed:
-    KOMODO_STAGING_WEBHOOK_URL — from Komodo UI → Stack → Config → Webhooks
-    KOMODO_PROD_WEBHOOK_URL    — from Komodo UI → Stack → Config → Webhooks
-    KOMODO_WEBHOOK_SECRET      — same value as in Komodo Core compose config
+  Note: If using Komodo for staging/prod deployment (V27 — recommended):
+    V27 model uses Komodo auto-update for staging (polls Docker Hub for new :staging-latest images)
+    and manual deploy from Komodo UI for production. No webhook URLs or secrets needed for this path.
+    OPTIONAL: If you prefer webhook-triggered deploys, add these GitHub Secrets:
+      KOMODO_STAGING_WEBHOOK_URL — from Komodo UI → Stack → Config → Webhooks
+      KOMODO_PROD_WEBHOOK_URL    — from Komodo UI → Stack → Config → Webhooks
+      KOMODO_WEBHOOK_SECRET      — same value as in Komodo Core compose config
     See Scenario 32 for full Komodo setup from scratch.
 □ Dev environment mode — PRE-LOCKED (V25):
   MODE A (WSL2 native) — the only supported dev environment. No devcontainer. No DinD.
@@ -2622,9 +2901,11 @@ Verify these BEFORE generating any files. Ask human to resolve anything missing.
   - IF docker.publish: true → remind human to add GitHub Secrets NOW (before first push to main):
       DOCKERHUB_USERNAME  = Docker Hub username (already in CREDENTIALS.md)
       DOCKERHUB_TOKEN     = Docker Hub access token (already in CREDENTIALS.md)
-      KOMODO_STAGING_WEBHOOK_URL = Komodo staging stack webhook URL (in CREDENTIALS.md)
-      KOMODO_PROD_WEBHOOK_URL    = Komodo prod stack webhook URL (in CREDENTIALS.md)
-      KOMODO_WEBHOOK_SECRET      = Komodo webhook secret (in CREDENTIALS.md)
+      OPTIONAL — only if using webhook deploy instead of V27 recommended auto-update model:
+        KOMODO_STAGING_WEBHOOK_URL = Komodo staging stack webhook URL (in CREDENTIALS.md)
+        KOMODO_PROD_WEBHOOK_URL    = Komodo prod stack webhook URL (in CREDENTIALS.md)
+        KOMODO_WEBHOOK_SECRET      = Komodo webhook secret (in CREDENTIALS.md)
+      Note: V27 recommended path uses Komodo auto-update (staging) + manual deploy (prod) — no webhooks needed.
       Location: GitHub repo → Settings → Secrets and variables → Actions → New secret
 
 □ Docker Hub account ready (ONLY if docker.publish: true)
@@ -2767,6 +3048,17 @@ Generate:
    PGADMIN_PORT=${ports.dev.pgadmin}
    PGADMIN_EMAIL=<generated-email>
    PGADMIN_PASSWORD=<generated-22-char>
+
+   # XENDIT (V27 — payment gateway, CONDITIONAL: only if payment.gateway: xendit)
+   # Dev uses TEST keys — no real charges, no banking network interaction
+   XENDIT_SECRET_KEY=<xendit-test-secret-key-from-section-4e>
+   XENDIT_PUBLIC_KEY=<xendit-test-public-key-from-section-4g>
+   XENDIT_WEBHOOK_TOKEN=<xendit-webhook-verification-token-from-section-4i>
+
+   # CLOUDFLARE TURNSTILE (V27 — bot protection, framework default)
+   # Dev uses Cloudflare's official test keys — always passes, no real widget needed
+   NEXT_PUBLIC_TURNSTILE_SITE_KEY=1x00000000000000000000AA
+   TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA
    ```
 
    **`.env.staging`** — staging environment (standard ports, mono-server, own volumes)
@@ -2827,6 +3119,22 @@ Generate:
    PGADMIN_PORT=5050
    PGADMIN_EMAIL=<generated-email>
    PGADMIN_PASSWORD=<generated-22-char>
+
+   # TRAEFIK (V27 — reverse proxy for HTTPS routing)
+   TRAEFIK_NETWORK=proxy
+   APP_DOMAIN=${staging_domain_from_product_md}
+
+   # XENDIT (V27 — payment gateway, CONDITIONAL: only if payment.gateway: xendit)
+   # Staging uses LIVE keys but with test amounts — or use TEST keys if preferred
+   XENDIT_SECRET_KEY=<xendit-live-secret-key-from-section-4f>
+   XENDIT_PUBLIC_KEY=<xendit-live-public-key-from-section-4h>
+   XENDIT_WEBHOOK_TOKEN=<xendit-webhook-verification-token-from-section-4i>
+
+   # CLOUDFLARE TURNSTILE (V27 — bot protection, framework default)
+   # Staging uses TEST keys (same as dev) — always passes, no real hostname needed on widget
+   # This saves a hostname slot: only prod domain needs to be registered on the Turnstile widget
+   NEXT_PUBLIC_TURNSTILE_SITE_KEY=1x00000000000000000000AA
+   TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA
    ```
 
    **`.env.prod`** — production environment (standard ports, mono-server, own volumes)
@@ -2887,6 +3195,21 @@ Generate:
    PGADMIN_PORT=5050
    PGADMIN_EMAIL=<generated-email>
    PGADMIN_PASSWORD=<generated-22-char>
+
+   # TRAEFIK (V27 — reverse proxy for HTTPS routing)
+   TRAEFIK_NETWORK=proxy
+   APP_DOMAIN=${prod_domain_from_product_md}
+
+   # XENDIT (V27 — payment gateway, CONDITIONAL: only if payment.gateway: xendit)
+   # Production uses LIVE keys — real charges, real money
+   XENDIT_SECRET_KEY=<xendit-live-secret-key-from-section-4f>
+   XENDIT_PUBLIC_KEY=<xendit-live-public-key-from-section-4h>
+   XENDIT_WEBHOOK_TOKEN=<xendit-webhook-verification-token-from-section-4i>
+
+   # CLOUDFLARE TURNSTILE (V27 — bot protection, framework default)
+   # Production is the ONLY environment using REAL keys — only prod domain registered on widget
+   NEXT_PUBLIC_TURNSTILE_SITE_KEY=<turnstile-live-site-key-from-section-4k>
+   TURNSTILE_SECRET_KEY=<turnstile-live-secret-key-from-section-4l>
    ```
 
    **`.env.example`** — the ONLY env file committed to git. Reference template for format only.
@@ -2965,6 +3288,16 @@ Generate:
    PGADMIN_PORT=5050
    PGADMIN_EMAIL=your-pgadmin-email-here
    PGADMIN_PASSWORD=your-pgadmin-password-here
+
+   # XENDIT (only if payment.gateway: xendit in inputs.yml)
+   # XENDIT_SECRET_KEY=xnd_development_your-test-secret-key-here
+   # XENDIT_PUBLIC_KEY=xnd_public_development_your-test-public-key-here
+   # XENDIT_WEBHOOK_TOKEN=your-xendit-webhook-verification-token-here
+
+   # CLOUDFLARE TURNSTILE (bot protection — framework default)
+   NEXT_PUBLIC_TURNSTILE_SITE_KEY=1x00000000000000000000AA
+   TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA
+   # ↑ These are Cloudflare's official test keys (always pass). Replace with real keys for staging/prod.
    ```
 
 4d. **`CREDENTIALS.md`** — master credentials reference file (NEW V17)
@@ -2976,7 +3309,7 @@ Generate:
    **Format:**
    ```markdown
    # CREDENTIALS MASTER LIST
-   # First written: Bootstrap Step 18 — Spec-Driven Platform V26
+   # First written: Bootstrap Step 18 — Spec-Driven Platform V28
    # Updated when: Phase 3 regenerates env files (credentials rotate) or Feature Update rotates a secret
    # ⚠️  GITIGNORED — NEVER commit this file
    # ⚠️  NEVER paste into any AI chat, LLM, or log file
@@ -3103,10 +3436,9 @@ Generate:
 
    | Service | Key Name | Value | Environment | Notes |
    |---------|----------|-------|-------------|-------|
-   | [e.g. Stripe] | STRIPE_SECRET_KEY | sk_live_... | prod | From Stripe dashboard → API Keys |
-   | [e.g. Stripe] | STRIPE_WEBHOOK_SECRET | whsec_... | prod | From Stripe → Webhooks |
+   | [e.g. Twilio] | TWILIO_ACCOUNT_SID | AC... | all | From Twilio console |
    | [e.g. OpenAI] | OPENAI_API_KEY | sk-... | all | From platform.openai.com |
-   | [Add rows for every external API declared in PRODUCT.md] | | | | |
+   | [Add rows for every external API declared in PRODUCT.md — Xendit has its own section above] | | | | |
 
    If no third-party integrations: write "No third-party API keys for this project."
 
@@ -3604,14 +3936,14 @@ Next.js output must be set to `standalone` in `next.config.ts` for this to work.
 
 ```dockerfile
 # Stage 1 — install dependencies
-FROM node:20-alpine AS deps
+FROM node:22-alpine AS deps
 WORKDIR /app
 RUN npm install -g pnpm
 COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 
 # Stage 2 — build
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
@@ -3619,7 +3951,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN pnpm build
 
 # Stage 3 — minimal production runner
-FROM node:20-alpine AS runner
+FROM node:22-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -4328,7 +4660,7 @@ permissions:
   contents: read
 
 env:
-  NODE_VERSION: "20"
+  NODE_VERSION: "22"
 
 jobs:
   governance:
@@ -4391,12 +4723,15 @@ jobs:
         # To fix: run pnpm audit --fix or manually update the vulnerable package.
 ```
 
-**`docker-publish.yml`** — Docker Hub image build + push (NEW V15):
+**`docker-publish.yml`** — Docker Hub image build + push (V15, updated V27):
 ⚠️ CONDITIONAL — only generate if `docker.publish: true` in inputs.yml. Skip entirely if false.
 
 ```yaml
 # .github/workflows/docker-publish.yml
 # Builds and pushes a production Docker image to Docker Hub on every push to main.
+# Two primary tags pushed per run:
+#   :staging-latest — Komodo auto-update polls for this tag (staging auto-redeploy)
+#   :latest         — used for manual production deploy from Komodo UI
 # Requires two GitHub repository secrets:
 #   DOCKERHUB_USERNAME — your Docker Hub username
 #   DOCKERHUB_TOKEN    — Docker Hub access token (not your password — create at hub.docker.com → Account Settings → Security)
@@ -4450,6 +4785,7 @@ jobs:
           images: ${{ env.IMAGE_NAME }}
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=staging-latest,enable={{is_default_branch}}
             type=sha,prefix=sha-,format=short
             type=ref,event=branch
 
@@ -5373,7 +5709,7 @@ RULE: Does the change affect WHAT the app does?
     "Update PRODUCT.md to add [change]. Do not implement yet — just write the PRODUCT.md entry."
   NO (bug fix, type error, config fix) → skip PRODUCT.md, describe fix directly in the prompt
 
-USING CLAUDE CODE (better for large changes — auto-loads CLAUDE.md, all 30 V26 rules active):
+USING CLAUDE CODE (better for large changes — auto-loads CLAUDE.md, all 30 V27 rules active):
   1. Run "claude" in project terminal — CLAUDE.md loads automatically
   2. "Resume Session" + attach 3 docs: project.memory.md + IMPLEMENTATION_MAP.md + DECISIONS_LOG.md
   3. After context confirmed: "Feature Update" + describe change + attach all 9 docs
@@ -5756,9 +6092,11 @@ STEP 2 — Build + push dev image (manual gate — you decide when dev is ready)
 STEP 3 — Promote to staging (re-tag, no rebuild):
   bash deploy/compose/push.sh staging
   This re-tags dev-latest → staging-latest + staging-sha-{hash} and pushes.
+  Note: GitHub Actions also pushes :staging-latest on every merge to main (V27).
+  push.sh staging is useful when promoting a dev build that was NOT merged to main yet.
   On your STAGING SERVER (Komodo or any host):
-    # Image tag is already set to staging-latest in .env.staging
-    # Just pull and restart — no source code, no build, no git clone:
+    # If using Komodo auto-update (V27 recommended): Komodo auto-detects new :staging-latest — no manual pull needed.
+    # If NOT using auto-update: pull and restart manually:
     docker compose -f deploy/compose/stage/docker-compose.app.yml pull
     docker compose -f deploy/compose/stage/docker-compose.app.yml up -d
     # To pin a specific version: set APP_IMAGE_TAG=staging-sha-{hash} in .env.staging first
@@ -5784,10 +6122,11 @@ ROLLBACK:
 
 GITHUB ACTIONS COEXISTENCE:
   GitHub Actions still runs docker-publish.yml on every push to main.
-  It pushes :latest and :sha-{hash} tags automatically.
+  It pushes :latest, :staging-latest, and :sha-{hash} tags automatically (V27).
   Manual push.sh and GitHub Actions push to the SAME Docker Hub repo.
   They do not conflict — push.sh uses :dev-*/staging-*/prod-* tags,
-  GitHub Actions uses :latest and :sha-{hash}.
+  GitHub Actions uses :latest, :staging-latest, and :sha-{hash}.
+  Komodo staging auto-update watches :staging-latest — either path keeps staging current.
   Production servers always pull :latest — either path keeps them current.
 
 COMMANDS.md:
@@ -5982,13 +6321,17 @@ STEP 3 — Pull the image on your Komodo server:
     docker pull yourdockerhubuser/appname:latest
     docker compose -f deploy/compose/prod/docker-compose.app.yml up -d
 
-  Option B — Komodo webhook (fully automated):
+  Option B — Komodo auto-update (recommended, zero config):
+    In Komodo: create a Stack → set image to yourdockerhubuser/appname:staging-latest
+    Set auto_update: true on the staging Stack. Komodo polls Docker Hub for new image digests
+    on a schedule and auto-redeploys when a newer :staging-latest tag is detected.
+    For production: set auto_update: false. Human clicks "Deploy" in Komodo UI after verifying staging.
+    See Scenario 32 for full Stack config and environment setup.
+
+  Option C — Komodo webhook (optional, legacy path):
     In Komodo: create a Stack or Container → set image to yourdockerhubuser/appname:latest
-    In GitHub Actions: add a step at the end of docker-publish.yml after the build:
-      - name: Trigger Komodo redeploy
-        run: |
-          curl -X POST "${{ secrets.KOMODO_WEBHOOK_URL }}"             -H "Content-Type: application/json"             -d '{"image": "${{ env.IMAGE_NAME }}:latest"}'
-    Add KOMODO_WEBHOOK_URL as a GitHub secret.
+    In GitHub Actions: add a webhook step to docker-publish.yml (see Scenario 32 Part D optional section).
+    Requires KOMODO_WEBHOOK_URL + KOMODO_WEBHOOK_SECRET as GitHub Secrets.
 
 DOCKER-COMPOSE.APP.YML TEMPLATES (NEW V22 — three distinct patterns):
 
@@ -6030,10 +6373,14 @@ DOCKER-COMPOSE.APP.YML TEMPLATES (NEW V22 — three distinct patterns):
   Pulls pre-built image from Docker Hub — NEVER builds from source, NEVER clones from GitHub.
   Image must already exist on Docker Hub before this file is used.
   Tag is read from APP_IMAGE_TAG in .env.staging — Komodo sets this before pulling.
+  Traffic routed via Traefik — no host port exposure on app service (V27).
   ```yaml
   networks:
     app_network:
       name: ${COMPOSE_PROJECT_NAME}_network
+      external: true
+    proxy:
+      name: ${TRAEFIK_NETWORK:-proxy}
       external: true
 
   services:
@@ -6042,6 +6389,7 @@ DOCKER-COMPOSE.APP.YML TEMPLATES (NEW V22 — three distinct patterns):
       # Image must be pushed to Docker Hub first (push.sh staging OR GitHub Actions)
       # Tag is controlled by APP_IMAGE_TAG in .env.staging
       # Komodo / server operator sets this tag before running docker compose pull
+      # Traffic routed via Traefik reverse proxy — no host port exposure (V27)
       image: ${DOCKERHUB_USERNAME}/${IMAGE_NAME}:${APP_IMAGE_TAG:-staging-latest}
       container_name: ${COMPOSE_PROJECT_NAME}_app
       hostname: ${COMPOSE_PROJECT_NAME}_app
@@ -6049,9 +6397,8 @@ DOCKER-COMPOSE.APP.YML TEMPLATES (NEW V22 — three distinct patterns):
       environment:
         - NODE_ENV=production
         - PORT=${APP_PORT}
-      ports:
-        - "${APP_PORT}:3000"
-      networks: [app_network]
+      # No ports: — Traefik routes traffic via Docker internal network
+      networks: [app_network, proxy]
       restart: unless-stopped
       depends_on:
         postgres: { condition: service_healthy }
@@ -6061,22 +6408,36 @@ DOCKER-COMPOSE.APP.YML TEMPLATES (NEW V22 — three distinct patterns):
         interval: 30s
         timeout: 10s
         retries: 3
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.${COMPOSE_PROJECT_NAME}_app.rule=Host(`${APP_DOMAIN}`)"
+        - "traefik.http.routers.${COMPOSE_PROJECT_NAME}_app.entrypoints=websecure"
+        - "traefik.http.routers.${COMPOSE_PROJECT_NAME}_app.tls.certresolver=letsEncrypt"
+        - "traefik.http.services.${COMPOSE_PROJECT_NAME}_app.loadbalancer.server.port=3000"
   ```
   Add to .env.staging:
   ```
   APP_IMAGE_TAG=staging-latest   # or sha-abc1234 for pinned rollback target
   DOCKERHUB_USERNAME=yourusername
   IMAGE_NAME=appname
+
+  # TRAEFIK (V27 — reverse proxy for HTTPS routing)
+  TRAEFIK_NETWORK=proxy
+  APP_DOMAIN=${staging_domain_from_product_md}
   ```
 
   PRODUCTION (deploy/compose/prod/docker-compose.app.yml):
   Pulls pre-built image from Docker Hub — NEVER builds from source, NEVER clones from GitHub.
   Image must already exist on Docker Hub before this file is used.
   Tag is read from APP_IMAGE_TAG in .env.prod — Komodo sets this before pulling.
+  Traffic routed via Traefik — no host port exposure on app service (V27).
   ```yaml
   networks:
     app_network:
       name: ${COMPOSE_PROJECT_NAME}_network
+      external: true
+    proxy:
+      name: ${TRAEFIK_NETWORK:-proxy}
       external: true
 
   services:
@@ -6087,6 +6448,7 @@ DOCKER-COMPOSE.APP.YML TEMPLATES (NEW V22 — three distinct patterns):
       # Komodo / server operator sets this tag before running docker compose pull
       # Default :latest = always the newest image pushed from main branch
       # Pin to sha-{hash} for a specific version (rollback)
+      # Traffic routed via Traefik reverse proxy — no host port exposure (V27)
       image: ${DOCKERHUB_USERNAME}/${IMAGE_NAME}:${APP_IMAGE_TAG:-latest}
       container_name: ${COMPOSE_PROJECT_NAME}_app
       hostname: ${COMPOSE_PROJECT_NAME}_app
@@ -6094,9 +6456,8 @@ DOCKER-COMPOSE.APP.YML TEMPLATES (NEW V22 — three distinct patterns):
       environment:
         - NODE_ENV=production
         - PORT=${APP_PORT}
-      ports:
-        - "${APP_PORT}:3000"
-      networks: [app_network]
+      # No ports: — Traefik routes traffic via Docker internal network
+      networks: [app_network, proxy]
       restart: unless-stopped
       depends_on:
         postgres: { condition: service_healthy }
@@ -6106,12 +6467,22 @@ DOCKER-COMPOSE.APP.YML TEMPLATES (NEW V22 — three distinct patterns):
         interval: 30s
         timeout: 10s
         retries: 3
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.${COMPOSE_PROJECT_NAME}_app.rule=Host(`${APP_DOMAIN}`)"
+        - "traefik.http.routers.${COMPOSE_PROJECT_NAME}_app.entrypoints=websecure"
+        - "traefik.http.routers.${COMPOSE_PROJECT_NAME}_app.tls.certresolver=letsEncrypt"
+        - "traefik.http.services.${COMPOSE_PROJECT_NAME}_app.loadbalancer.server.port=3000"
   ```
   Add to .env.prod:
   ```
   APP_IMAGE_TAG=latest            # or sha-abc1234 to pin to a specific version
   DOCKERHUB_USERNAME=yourusername
   IMAGE_NAME=appname
+
+  # TRAEFIK (V27 — reverse proxy for HTTPS routing)
+  TRAEFIK_NETWORK=proxy
+  APP_DOMAIN=${prod_domain_from_product_md}
   ```
   ⚠ CRITICAL: No build: key anywhere in staging or prod compose files.
   These servers NEVER touch your source code. They ONLY pull pre-built images from Docker Hub.
@@ -6138,13 +6509,21 @@ SEE ALSO — MANUAL PIPELINE (NEW V22):
 ```
 
 
-### SCENARIO 32 — Komodo deployment: staging + production with full service isolation (NEW V23)
+### SCENARIO 32 — Komodo deployment: staging + production with full service isolation (V23, updated V27)
 ```
 CONTEXT:
   You already have Komodo installed and running.
   GitHub Actions builds the Docker image and pushes to Docker Hub.
-  Komodo is the deployment operator: it receives a webhook from GitHub Actions,
-  pulls the pre-built image from Docker Hub, and runs it on your server.
+  Komodo is the deployment operator: it auto-detects new images on Docker Hub (staging)
+  or pulls on manual deploy (production). Both environments pull from Docker Hub.
+  GitHub Actions never contacts Komodo directly (V27).
+
+  V27 DEPLOYMENT MODEL:
+  - STAGING: auto_update: true. Komodo polls Docker Hub for newer :staging-latest digests.
+    When GitHub Actions pushes a new :staging-latest tag, Komodo auto-pulls and redeploys.
+  - PRODUCTION: auto_update: false. Human clicks "Deploy" in Komodo UI after verifying staging.
+    Komodo pulls the image from Docker Hub at that moment.
+  - Docker Hub is the handoff point between CI and deployment. No webhooks needed.
 
   CRITICAL ISOLATION RULE:
   Staging and production MUST have completely separate Docker service groups.
@@ -6172,14 +6551,15 @@ A1 — Add Docker Hub registry to Komodo (pull credentials):
   Token:     ${DOCKERHUB_TOKEN}             ← Docker Hub access token (same as GitHub Secret)
   Save. Komodo uses this to pull private images on your servers.
 
-A2 — Verify GitHub Secrets exist (GitHub Actions → Komodo webhook):
+A2 — Verify GitHub Secrets exist (Docker Hub push only — webhooks optional):
   GitHub repo → Settings → Secrets → Actions:
   DOCKERHUB_USERNAME          ← already set from V22 pipeline
   DOCKERHUB_TOKEN             ← already set from V22 pipeline
-  KOMODO_STAGING_WEBHOOK_URL  ← get from: Komodo UI → Stacks → [staging-stack] → Config → Webhooks
-  KOMODO_PROD_WEBHOOK_URL     ← get from: Komodo UI → Stacks → [prod-stack] → Config → Webhooks
-  KOMODO_WEBHOOK_SECRET       ← same value as KOMODO_WEBHOOK_SECRET in your Komodo Core config
-  Add KOMODO_STAGING_WEBHOOK_URL and KOMODO_PROD_WEBHOOK_URL after creating Stacks in Part B.
+  OPTIONAL — only if using webhook deploy instead of V27 recommended auto-update model:
+    KOMODO_STAGING_WEBHOOK_URL  ← get from: Komodo UI → Stacks → [staging-stack] → Config → Webhooks
+    KOMODO_PROD_WEBHOOK_URL     ← get from: Komodo UI → Stacks → [prod-stack] → Config → Webhooks
+    KOMODO_WEBHOOK_SECRET       ← same value as KOMODO_WEBHOOK_SECRET in your Komodo Core config
+  Note: V27 recommended path needs ONLY DOCKERHUB_USERNAME + DOCKERHUB_TOKEN. No webhook secrets.
 
 A3 — Add Komodo secrets via Variables (for shared values across Stacks):
   Komodo UI → Settings → Variables → New Variable (check "Secret")
@@ -6197,10 +6577,12 @@ B1 — Create the Staging Stack:
   Name:         ${app_slug}-staging          (e.g. nucleus-erp-staging)
   Server:       [your server name in Komodo]
   Run directory: /opt/stacks/${app_slug}-staging   (Komodo writes compose files here)
+  auto_update:  true    ← V27: Komodo polls Docker Hub for new :staging-latest digests and auto-redeploys
 
 B2 — Compose file for staging (paste into Komodo UI → Stack → Compose):
   This is the FULL compose file for staging — ALL services together.
   It uses COMPOSE_PROJECT_NAME to isolate from prod on the same server.
+  App service uses Traefik labels for HTTPS routing — no host port exposure (V27).
 
   ```yaml
   # =============================================================
@@ -6208,12 +6590,16 @@ B2 — Compose file for staging (paste into Komodo UI → Stack → Compose):
   # All services in ONE compose file — isolated from prod via COMPOSE_PROJECT_NAME.
   # Image pulled from Docker Hub. NO build: key anywhere.
   # Volumes and network are prefixed with COMPOSE_PROJECT_NAME to prevent sharing.
+  # App traffic routed via Traefik reverse proxy — no host port exposure (V27).
   # =============================================================
 
   networks:
     app_network:
       name: ${COMPOSE_PROJECT_NAME}_network
       driver: bridge
+    proxy:
+      name: ${TRAEFIK_NETWORK:-proxy}
+      external: true
 
   volumes:
     postgres_data:
@@ -6319,6 +6705,7 @@ B2 — Compose file for staging (paste into Komodo UI → Stack → Compose):
 
     app:
       # ⚠ NO build: key — image pulled from Docker Hub only
+      # Traffic routed via Traefik reverse proxy — no host port exposure (V27)
       image: ${DOCKERHUB_USERNAME}/${IMAGE_NAME}:${APP_IMAGE_TAG:-staging-latest}
       container_name: ${COMPOSE_PROJECT_NAME}_app
       hostname: ${COMPOSE_PROJECT_NAME}_app
@@ -6334,9 +6721,8 @@ B2 — Compose file for staging (paste into Komodo UI → Stack → Compose):
         STORAGE_ACCESS_KEY: ${STORAGE_ACCESS_KEY}
         STORAGE_SECRET_KEY: ${STORAGE_SECRET_KEY}
         STORAGE_REGION: ${STORAGE_REGION}
-      ports:
-        - "${APP_PORT}:3000"
-      networks: [app_network]
+      # No ports: — Traefik routes traffic via Docker internal network
+      networks: [app_network, proxy]
       restart: unless-stopped
       depends_on:
         postgres: { condition: service_healthy }
@@ -6346,11 +6732,18 @@ B2 — Compose file for staging (paste into Komodo UI → Stack → Compose):
         interval: 30s
         timeout: 10s
         retries: 3
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.${COMPOSE_PROJECT_NAME}_app.rule=Host(`${APP_DOMAIN}`)"
+        - "traefik.http.routers.${COMPOSE_PROJECT_NAME}_app.entrypoints=websecure"
+        - "traefik.http.routers.${COMPOSE_PROJECT_NAME}_app.tls.certresolver=letsEncrypt"
+        - "traefik.http.services.${COMPOSE_PROJECT_NAME}_app.loadbalancer.server.port=3000"
   ```
 
   NOTE ON NETWORKING: Services talk to each other via container hostname
   (e.g. app connects to pgbouncer via ${COMPOSE_PROJECT_NAME}_pgbouncer:5432).
   This is the Docker internal network — no port exposure needed between services.
+  App service also joins the Traefik external network (proxy) for HTTPS routing.
 
 B3 — Staging environment variables (paste into Komodo UI → Stack → Environment):
   Komodo writes these to a .env file and passes via --env-file.
@@ -6364,12 +6757,16 @@ B3 — Staging environment variables (paste into Komodo UI → Stack → Environ
   # ═══════════════════════════════════════════════════
   COMPOSE_PROJECT_NAME=${app_slug}_staging
   APP_ENV=staging
-  APP_PORT=3001              ← use DIFFERENT port than prod if on same server
+  APP_PORT=3000              ← internal container port (not exposed to host — Traefik routes traffic)
 
   # DOCKER HUB IMAGE
   DOCKERHUB_USERNAME=[[DOCKERHUB_USERNAME]]
   IMAGE_NAME=${docker.image_name}
   APP_IMAGE_TAG=staging-latest
+
+  # TRAEFIK (V27 — reverse proxy for HTTPS routing)
+  TRAEFIK_NETWORK=proxy
+  APP_DOMAIN=${staging_domain_from_product_md}
 
   # DATABASE (isolated — never shared with prod)
   DB_HOST=${app_slug}_staging_postgres
@@ -6419,6 +6816,8 @@ B3 — Staging environment variables (paste into Komodo UI → Stack → Environ
   ⚠ PORT RULE: If staging and production run on the SAME server,
   every port must be different between them. Use the offset pattern:
   Staging ports start 1 higher or use a different range (e.g. staging DB=5433, prod DB=5432).
+  Note: APP_PORT is no longer exposed to the host — Traefik handles routing — but backing
+  service ports (DB, Valkey, MinIO, pgAdmin) still need unique host ports if on same server.
 
 ═══════════════════════════════════════════════════════════════════
 PART C — PRODUCTION STACK SETUP IN KOMODO
@@ -6429,10 +6828,10 @@ C1 — Create the Production Stack:
   Name:         ${app_slug}-prod             (e.g. nucleus-erp-prod)
   Server:       [your server name in Komodo]
   Run directory: /opt/stacks/${app_slug}-prod
-  auto_update:  false   ← NEVER auto-update prod — deploy only via webhook
+  auto_update:  false   ← NEVER auto-update prod. Human clicks Deploy in Komodo UI after verifying staging.
 
 C2 — Compose file for production (paste into Komodo UI → Stack → Compose):
-  IDENTICAL structure to staging compose — same service definitions.
+  IDENTICAL structure to staging compose — same service definitions, same Traefik labels.
   The ONLY difference is COMPOSE_PROJECT_NAME (${app_slug}_prod) which namespaces everything.
   Copy the staging compose exactly and change nothing else — the env vars do the rest.
 
@@ -6445,6 +6844,7 @@ C2 — Compose file for production (paste into Komodo UI → Stack → Compose):
   #   nucleus-erp_prod_postgres_data (different volume than nucleus-erp_staging_postgres_data)
   #   nucleus-erp_prod_network    (different network than nucleus-erp_staging_network)
   #   App connects to: nucleus-erp_prod_pgbouncer:5432 (never talks to staging's pgbouncer)
+  #   Traefik routes traffic via APP_DOMAIN env var (prod domain, not staging domain)
   ```
 
   Paste the exact same compose YAML from B2 — no modifications.
@@ -6460,12 +6860,16 @@ C3 — Production environment variables (paste into Komodo UI → Stack → Envi
   # ═══════════════════════════════════════════════════
   COMPOSE_PROJECT_NAME=${app_slug}_prod
   APP_ENV=production
-  APP_PORT=3000              ← standard prod port (or whatever nginx proxies to)
+  APP_PORT=3000              ← internal container port (not exposed to host — Traefik routes traffic)
 
   # DOCKER HUB IMAGE
   DOCKERHUB_USERNAME=[[DOCKERHUB_USERNAME]]
   IMAGE_NAME=${docker.image_name}
   APP_IMAGE_TAG=latest       ← prod always pulls :latest from Docker Hub
+
+  # TRAEFIK (V27 — reverse proxy for HTTPS routing)
+  TRAEFIK_NETWORK=proxy
+  APP_DOMAIN=${prod_domain_from_product_md}
 
   # DATABASE (isolated — never shared with staging)
   DB_HOST=${app_slug}_prod_postgres
@@ -6517,40 +6921,61 @@ C3 — Production environment variables (paste into Komodo UI → Stack → Envi
   Generate separately: openssl rand -base64 32 per environment per credential.
 
 ═══════════════════════════════════════════════════════════════════
-PART D — GITHUB ACTIONS → KOMODO WEBHOOK INTEGRATION
+PART D — V27 DEPLOYMENT FLOW (AUTO-UPDATE + MANUAL DEPLOY)
 ═══════════════════════════════════════════════════════════════════
 
-D1 — Get webhook URLs (after creating Stacks in Parts B and C):
-  Komodo UI → Stacks → ${app_slug}-staging → Config → Webhooks → Copy URL
-  Komodo UI → Stacks → ${app_slug}-prod    → Config → Webhooks → Copy URL
-  Format: https://[komodo-host]/listener/github/stack/[stack-name]/deploy
+D1 — GitHub Actions pushes images to Docker Hub (automatic on every merge to main):
+  docker-publish.yml builds a multi-platform image and pushes three tags:
+    :staging-latest    ← Komodo staging auto-update watches this tag
+    :latest            ← used for manual production deploy from Komodo UI
+    :sha-{short-hash}  ← immutable per-commit tag for pinned rollback
+  GitHub Actions NEVER contacts Komodo directly. Docker Hub is the handoff point.
 
-D2 — Add GitHub Secrets:
-  KOMODO_STAGING_WEBHOOK_URL = [staging webhook URL]
-  KOMODO_PROD_WEBHOOK_URL    = [prod webhook URL]
-  KOMODO_WEBHOOK_SECRET      = [same as KOMODO_WEBHOOK_SECRET in your Komodo Core config]
+D2 — Komodo staging auto-detects new :staging-latest → auto-redeploys:
+  Komodo's auto_update: true on the staging Stack polls Docker Hub on a schedule.
+  When a newer digest for :staging-latest is detected, Komodo:
+    → runs docker compose pull (gets new :staging-latest image)
+    → runs docker compose up -d (restarts only the app container)
+    → DB, Valkey, MinIO, pgAdmin are untouched — only the app image changes
+  No webhook, no curl, no GitHub Secret needed.
+  Reference: https://komo.do/docs/deploy/auto-update
 
-D3 — Add webhook step to .github/workflows/docker-publish.yml:
-  Add AFTER the existing "Build and push" step:
+D3 — Human verifies staging → manually deploys to production:
+  1. Verify staging at https://${staging_domain_from_product_md}
+  2. If staging is stable: go to Komodo UI → Stacks → ${app_slug}-prod → click "Deploy"
+  3. Komodo pulls :latest (or :sha-{hash} if APP_IMAGE_TAG was changed) from Docker Hub
+  4. App container restarts with new image. All backing services unchanged.
+  Production NEVER auto-deploys. This is a security decision.
+
+D4 — (OPTIONAL) If you prefer webhook-triggered deploys instead:
+  This is the legacy path — still supported but not recommended for V27.
+
+  Get webhook URLs (after creating Stacks in Parts B and C):
+    Komodo UI → Stacks → ${app_slug}-staging → Config → Webhooks → Copy URL
+    Komodo UI → Stacks → ${app_slug}-prod    → Config → Webhooks → Copy URL
+    Format: https://[komodo-host]/listener/github/stack/[stack-name]/deploy
+
+  Add GitHub Secrets:
+    KOMODO_STAGING_WEBHOOK_URL = [staging webhook URL]
+    KOMODO_PROD_WEBHOOK_URL    = [prod webhook URL]
+    KOMODO_WEBHOOK_SECRET      = [same as KOMODO_WEBHOOK_SECRET in your Komodo Core config]
+
+  Add webhook step to .github/workflows/docker-publish.yml after the "Build and push" step:
   ```yaml
   - name: Trigger Komodo staging redeploy
     if: github.ref == 'refs/heads/main'
     run: |
       PAYLOAD='{}'
-      SIGNATURE=$(echo -n "$PAYLOAD" | openssl dgst -sha256         -hmac "${{ secrets.KOMODO_WEBHOOK_SECRET }}" | sed 's/.*= //')
-      curl -X POST "${{ secrets.KOMODO_STAGING_WEBHOOK_URL }}"         -H "Content-Type: application/json"         -H "X-Hub-Signature-256: sha256=${SIGNATURE}"         -d "$PAYLOAD"
+      SIGNATURE=$(echo -n "$PAYLOAD" | openssl dgst -sha256 \
+        -hmac "${{ secrets.KOMODO_WEBHOOK_SECRET }}" | sed 's/.*= //')
+      curl -X POST "${{ secrets.KOMODO_STAGING_WEBHOOK_URL }}" \
+        -H "Content-Type: application/json" \
+        -H "X-Hub-Signature-256: sha256=${SIGNATURE}" \
+        -d "$PAYLOAD"
   ```
   Production webhook: add a separate job gated on manual approval or only trigger
   after push.sh prod is run (prod deploy is never automatic — Rule: never auto-deploy prod).
-
-D4 — Full automated deploy sequence (staging only auto-deploys):
-  1. Squash-merge feat/[slug] to main (Rule 23)
-  2. GitHub Actions: build multi-platform image → push :staging-latest + :sha-{hash} to Docker Hub
-  3. GitHub Actions: POST to KOMODO_STAGING_WEBHOOK_URL
-  4. Komodo: receives webhook → DeployStack ${app_slug}-staging
-  5. Komodo: runs: docker compose pull (gets new :staging-latest) + docker compose up -d
-  6. All staging services restart with new app image — DB, Valkey, MinIO unchanged (only app updated)
-  7. Verify staging → run push.sh prod → POST to KOMODO_PROD_WEBHOOK_URL manually
+  Reference: https://komo.do/docs/automate/webhooks
 
 ═══════════════════════════════════════════════════════════════════
 PART E — SERVICE ISOLATION VERIFICATION CHECKLIST
@@ -6559,21 +6984,27 @@ PART E — SERVICE ISOLATION VERIFICATION CHECKLIST
 Run on your server after first deploy of both environments:
 
   docker ps --format "table {{.Names}}	{{.Ports}}	{{.Status}}"
-  Expected output (no shared names, no shared ports):
+  Expected output (no shared names — app has no host port, backing services have unique ports):
   ${app_slug}_staging_postgres    0.0.0.0:5433->5432/tcp    Up
   ${app_slug}_staging_valkey      0.0.0.0:6380->6379/tcp    Up
   ${app_slug}_staging_minio       0.0.0.0:9010->9000/tcp    Up
-  ${app_slug}_staging_app         0.0.0.0:3001->3000/tcp    Up
+  ${app_slug}_staging_app         3000/tcp                  Up    ← no host port (Traefik routes)
   ${app_slug}_prod_postgres       0.0.0.0:5432->5432/tcp    Up
   ${app_slug}_prod_valkey         0.0.0.0:6379->6379/tcp    Up
   ${app_slug}_prod_minio          0.0.0.0:9000->9000/tcp    Up
-  ${app_slug}_prod_app            0.0.0.0:3000->3000/tcp    Up
+  ${app_slug}_prod_app            3000/tcp                  Up    ← no host port (Traefik routes)
+
+  Verify app is reachable through Traefik:
+  curl -sI https://${staging_domain_from_product_md} | head -5
+  curl -sI https://${prod_domain_from_product_md} | head -5
+  Expected: HTTP/2 200 (or 301 redirect if app has one)
 
   docker volume ls | grep ${app_slug}
   Expected: _staging_ and _prod_ volumes are separate — NEVER the same volume.
 
   docker network ls | grep ${app_slug}
   Expected: ${app_slug}_staging_network and ${app_slug}_prod_network — separate networks.
+  Both app containers also appear on the Traefik proxy network.
 
   ⚠ If you see a staging container connected to a prod network → STOP IMMEDIATELY.
   The COMPOSE_PROJECT_NAME variable is not set correctly on one of the Stacks.
@@ -6590,6 +7021,30 @@ PART F — ROLLBACK
   Via terminal (on server):
   docker compose -f /opt/stacks/${app_slug}-prod/compose.yaml pull
   docker compose -f /opt/stacks/${app_slug}-prod/compose.yaml up -d
+
+═══════════════════════════════════════════════════════════════════
+PART G — TRAEFIK REFERENCE (V27)
+═══════════════════════════════════════════════════════════════════
+
+  PREREQUISITE: Traefik must already be running on your server as a reverse proxy.
+  Traefik handles TLS termination (Let's Encrypt auto-certs) and routes traffic to containers.
+
+  Default external network name: proxy (locked decision: TRAEFIK_NETWORK=proxy)
+  If your Traefik uses a different network name, update TRAEFIK_NETWORK in both env configs.
+
+  Traefik labels on the app service:
+    traefik.enable=true                              — register this container with Traefik
+    traefik.http.routers.*.rule=Host(`${APP_DOMAIN}`) — match incoming hostname
+    traefik.http.routers.*.entrypoints=websecure     — HTTPS only (port 443)
+    traefik.http.routers.*.tls.certresolver=letsEncrypt — auto-issue TLS cert
+    traefik.http.services.*.loadbalancer.server.port=3000 — container listens on 3000
+
+  Dev compose is UNCHANGED — no Traefik in local dev (Docker Desktop + direct port access).
+
+  Traefik documentation: https://doc.traefik.io/traefik/
+  Komodo auto-update docs: https://komo.do/docs/deploy/auto-update
+  Komodo Stack config: https://komo.do/docs/deploy/compose
+  Komodo Procedures: https://komo.do/docs/automate/procedures
 
 SEE ALSO:
   Scenario 24: GitHub Actions CI build pipeline (builds + pushes to Docker Hub)
@@ -6654,7 +7109,7 @@ PR reviews on GitHub.
 
 **SpecStory** — passive change capture layer (NEW elevated role in V11)
 Install the SpecStory VS Code extension — zero config needed after Bootstrap.
-Bootstrap writes `.specstory/specs/v26-master-prompt.md` and `.specstory/config.json`.
+Bootstrap writes `.specstory/specs/v28-master-prompt.md` and `.specstory/config.json`.
 Auto-captures every Claude Code + Cline session to `.specstory/history/`.
 Captures Copilot inline edits via file-change diffs.
 Powers Governance Sync attribution reconciliation (Scenarios 17 + 18).
@@ -6844,35 +7299,39 @@ Version stays same for: wording fixes, clarifications, side note updates.
 
 **Adopting a new version on an existing project:**
 ```
-1. cp "Master Prompt v25.md" ./CLAUDE.md
-   Also copy to .specstory/specs/v26-master-prompt.md
-2. Update .specstory/config.json → set autoInjectSpec: "v26-master-prompt.md"
+1. cp "Master Prompt v27.md" ./CLAUDE.md
+   Also copy to .specstory/specs/v28-master-prompt.md
+2. Update .specstory/config.json → set autoInjectSpec: "v28-master-prompt.md"
 3. Open new session → immediately run "Resume Session" + 3 docs
 4. Never re-run Phase 2, 3, or 4 when adopting a new version.
    Resume Session is always sufficient to reconnect to your existing project.
-5. V25: WSL2 native only — no devcontainer. No setup change needed for existing WSL2 projects.
-6. V25: System Hardening H1–H4 active — auto-enforced, no action needed.
-7. V23: Bootstrap Step 18 Credential Gate active — if not yet run, run Bootstrap first.
-8. V23: Context7 Rule 30 active — append "use context7" to any library task in Cline.
-9. V22: Docker pipeline active — push.sh + COMMANDS.md generated when docker.publish: true.
-10. V22: Start dev: bash deploy/compose/start.sh dev up -d. Push image: bash deploy/compose/push.sh dev
-11. V21: Rule 29 active — no fuzzy reasoning in Cline. Auto-enforced via WHO YOU ARE + .clinerules.
-12. V21: Edge case recovery active — Scenario 29 has procedures for 5 failure modes.
-13. V20: Global priority ladder visible in WHO YOU ARE — no action needed, auto-enforced
-14. V19 skills: mkdir -p .github/skills/spec-driven-core then write SKILL.md from Bootstrap Step 17 template.
+5. V27: Traefik reverse proxy — update staging/prod compose files: add Traefik labels + proxy external network to app service, remove ports: from app. Add TRAEFIK_NETWORK=proxy and APP_DOMAIN to .env.staging/.env.prod. Dev compose unchanged.
+6. V27: Komodo deployment model — set auto_update: true on staging Stack, auto_update: false on prod Stack. Remove webhook step from docker-publish.yml if present. Webhook GitHub Secrets now optional.
+7. V27: Xendit payment gateway — if app accepts payments, add XENDIT_SECRET_KEY, XENDIT_PUBLIC_KEY, XENDIT_WEBHOOK_TOKEN to .env files (dev=TEST keys, staging/prod=LIVE keys). Run Bootstrap Step 18 Section 4.5 to collect keys. Add Xendit section to CREDENTIALS.md.
+8. V27: Cloudflare Turnstile — add NEXT_PUBLIC_TURNSTILE_SITE_KEY + TURNSTILE_SECRET_KEY to all .env files (dev+staging=test keys, prod=real keys from dash.cloudflare.com → Turnstile). Add widget with hostname: prod domain only. Update CSP headers to allow challenges.cloudflare.com.
+9. V25: WSL2 native only — no devcontainer. No setup change needed for existing WSL2 projects.
+8. V25: System Hardening H1–H4 active — auto-enforced, no action needed.
+9. V23: Bootstrap Step 18 Credential Gate active — if not yet run, run Bootstrap first.
+10. V23: Context7 Rule 30 active — append "use context7" to any library task in Cline.
+11. V22: Docker pipeline active — push.sh + COMMANDS.md generated when docker.publish: true.
+12. V22: Start dev: bash deploy/compose/start.sh dev up -d. Push image: bash deploy/compose/push.sh dev
+13. V21: Rule 29 active — no fuzzy reasoning in Cline. Auto-enforced via WHO YOU ARE + .clinerules.
+14. V21: Edge case recovery active — Scenario 29 has procedures for 5 failure modes.
+15. V20: Global priority ladder visible in WHO YOU ARE — no action needed, auto-enforced
+16. V19 skills: mkdir -p .github/skills/spec-driven-core then write SKILL.md from Bootstrap Step 17 template.
    Optional packs: see Scenario 27
-15. V19 Phase 2.7: say "Re-run Phase 2.7" in Claude Code to stress-test your existing PRODUCT.md.
+17. V19 Phase 2.7: say "Re-run Phase 2.7" in Claude Code to stress-test your existing PRODUCT.md.
    To disable: set vibe_test.enabled: false in inputs.yml
-16. V19 model: update Cline OpenRouter model to minimax/minimax-m2.5
-17. V18: Security headers + rate limiter + DOMPurify + pnpm audit — always-on defaults
+18. V19 model: update Cline OpenRouter model to minimax/minimax-m2.5
+19. V18: Security headers + rate limiter + DOMPurify + pnpm audit — always-on defaults
    Verify: curl -I http://localhost:${APP_PORT} | grep x-frame
-18. V17: CREDENTIALS.md generated by Phase 3 — strictly gitignored, never read into context
+20. V17: CREDENTIALS.md generated by Phase 3 — strictly gitignored, never read into context
    Verify: grep CREDENTIALS .gitignore
-19. V16: pgAdmin on all environments — check .env.dev for PGADMIN_PORT and credentials
-20. V15 optional: docker.publish: true in inputs.yml → Dockerfile + docker-publish.yml generated
+21. V16: pgAdmin on all environments — check .env.dev for PGADMIN_PORT and credentials
+22. V15 optional: docker.publish: true in inputs.yml → Dockerfile + docker-publish.yml generated
    Add DOCKERHUB_USERNAME + DOCKERHUB_TOKEN secrets in GitHub repo settings
-21. V14 optional: UI UX Pro Max skill + code-review-graph + Section K → Phase 2.6
-22. V11: .specstory/config.json already exists — just update the autoInjectSpec value
+23. V14 optional: UI UX Pro Max skill + code-review-graph + Section K → Phase 2.6
+24. V11: .specstory/config.json already exists — just update the autoInjectSpec value
 ```
 
 
@@ -6929,6 +7388,56 @@ Version stays same for: wording fixes, clarifications, side note updates.
 - Planning Assistant: interview Step 7 adds prod+staging domain question, PRODUCT.md template updated, CORS template updated, Phase 2 Alignment Check updated
 - Quick Start FIMS example corrected: stage.fims.powerbyte.app → staging-fims.powerbyte.app
 - Rule count: 30 (unchanged). Scenario count: 32 (unchanged). Bootstrap: 18 steps (unchanged). Version bump: V25 → V26 ✅
+
+**v26 → v27 — Komodo auto-update + Traefik reverse proxy (V27):**
+- DEPLOYMENT MODEL CHANGE: Komodo staging Stack now uses auto_update: true — polls Docker Hub for newer :staging-latest digests. No webhook needed. Production uses manual deploy from Komodo UI (auto_update: false). Docker Hub is the handoff point between CI and deployment. GitHub Actions never contacts Komodo.
+- docker-publish.yml: now pushes :staging-latest tag alongside :latest and :sha-{hash}. Two primary tags: :staging-latest (Komodo auto-update) and :latest (manual prod deploy). No webhook step in GitHub Actions.
+- TRAEFIK REVERSE PROXY: Staging and prod app services now use Traefik labels for automatic HTTPS routing. App service no longer exposes host ports — Traefik routes traffic via Docker internal network. Dev compose unchanged (direct port mapping). Locked decision: TRAEFIK_NETWORK=proxy.
+- Traefik labels on app service: traefik.enable, Host() router rule, websecure entrypoint, letsEncrypt certresolver, loadbalancer port=3000
+- .env.staging/.env.prod: added TRAEFIK_NETWORK=proxy and APP_DOMAIN env vars
+- .clinerules DOCKER COMPOSE RULES: added Traefik note for staging/prod vs dev distinction
+- Bootstrap Step 18 Section 4: webhook fields 4b/4c/4d marked OPTIONAL (recommended auto-update model)
+- CREDENTIALS.md template Komodo section: webhook fields marked OPTIONAL, Required? column added
+- GitHub Actions Secrets table: 3 Komodo webhook secrets marked OPTIONAL
+- Phase 3 pre-flight: Komodo webhook secrets grouped under OPTIONAL with note
+- Phase 2 Section I: Komodo note updated to reflect V27 auto-update model
+- Scenario 24: Step 3 rewritten — Option B is now Komodo auto-update (recommended), Option C is webhook (legacy)
+- Scenario 32: FULL REWRITE — Part A credentials simplified (webhooks optional), Part B/C staging+prod compose files updated with Traefik labels + external network + no host ports on app, Part D replaced with V27 flow (D1-D3 auto-update + manual deploy, D4 optional webhook path preserved), Part E verification updated (app shows no host port, curl through Traefik), Part G added (Traefik reference with prerequisites and docs links)
+- Scenario 30: staging note updated — :staging-latest tag also pushed by GitHub Actions
+- Prompt versioning: V27 adoption step added (Traefik network + deployment model)
+- Rule count: 30 (unchanged). Scenario count: 32 (unchanged). Bootstrap: 18 steps (unchanged). Version bump: V26 → V27 ✅
+- XENDIT PAYMENT GATEWAY (V27 — framework default for SEA markets):
+  Xendit is the default payment gateway for all apps that accept payments (conditional on payment.gateway: xendit in inputs.yml).
+  Phase 2 Section G2 added — payment gateway interview questions (methods, recurring, refunds, multi-currency).
+  Bootstrap Step 18 Section 4.5 added — collects 5 Xendit credentials (test secret, live secret, test public, live public, webhook token).
+  CREDENTIALS.md template — dedicated Xendit section with all keys per environment.
+  .env.dev/.env.staging/.env.prod templates — XENDIT_SECRET_KEY, XENDIT_PUBLIC_KEY, XENDIT_WEBHOOK_TOKEN (conditional).
+  .env.example — Xendit placeholders with correct key format (xnd_development_*, xnd_public_development_*).
+  SECURE CODE GENERATION — Xendit Webhook Security subsection added (6 rules: x-callback-token verification, idempotency, payload validation, endpoint security, key handling, queue recommendation).
+  spec-driven-payments plugin updated — Xendit-first instead of Stripe-first.
+  Third-party API key examples updated — Xendit has its own dedicated section in CREDENTIALS.md.
+- CLOUDFLARE TURNSTILE BOT PROTECTION (V27 — framework default for all apps):
+  Turnstile replaces CAPTCHA with invisible/managed challenges. Enabled by default on all public-facing forms. WCAG 2.2 AAA compliant.
+  Phase 2 Section H adds Turnstile interview — protected pages, widget mode, hostname budget for SaaS.
+  Bootstrap Step 18 Section 4.6 collects Site Key + Secret Key. Test keys pre-filled for dev.
+  CREDENTIALS.md template — dedicated Turnstile section with test/live keys per environment.
+  .env templates — NEXT_PUBLIC_TURNSTILE_SITE_KEY (public, client-safe) + TURNSTILE_SECRET_KEY (server-only).
+  .env.example — test keys pre-filled with replacement note.
+  SECURE CODE GENERATION — Turnstile Bot Protection subsection (6 rules): page protection strategy (login, register, password reset, contact, payment), FREE tier widget budget (1 widget/app, prod-only hostname — dev+staging use test keys for 0 hostname usage), client-side React (@marsidev/react-turnstile), server-side siteverify validation (mandatory — client alone provides no protection), dev+staging test keys, CSP updates (challenges.cloudflare.com in script-src + frame-src).
+  Security headers (Phase 4 Part 3): CSP must include challenges.cloudflare.com when turnstile.enabled: true.
+
+**v27 → v28 — security hardening: CSRF + SSRF + session invalidation + global rate limiting (V28):**
+- SECURE CODE GENERATION: CSRF PROTECTION subsection added — documents why tRPC + SameSite=lax is inherently CSRF-resistant and requires no additional tokens. Route Handlers that mutate state MUST implement double-submit cookie or Origin validation. Webhook endpoints exempt (use signature verification).
+- SECURE CODE GENERATION: SSRF PREVENTION subsection added — 4 rules: reject private IP ranges (127.0.0.0/8, 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 169.254.0.0/16), use new URL() for parsing (never regex), resolve hostname before request (DNS rebinding prevention), sandbox user-provided URL fetches.
+- SECURE CODE GENERATION: AUTH DEFAULTS item 6 added — session invalidation on role/tenant change via securityVersion field on User model, checked in Auth.js session callback. Covers: role change, tenant removal, account suspension, password change.
+- SECURE CODE GENERATION: SECURE PRODUCTION DEFAULTS item 7 added — tiered global rate limiting: auth ≤10/min per IP, API ≤100/min per user, public ≤300/min per IP. All tRPC procedures must use appropriate tier — not just auth endpoints.
+- STALE REF FIX: Quick Start copy commands referenced "v25" — fixed to "v28" in 3 locations (Bootstrap cp, Version Adoption cp, specstory specs path).
+- STALE REF FIX: Security Checklist footer referenced "Master_Prompt_v26.md" — fixed to v28.
+- STALE REF FIX: AI Tools Reference referenced "Post_Generation_Security_Checklist_v26.md" — fixed to v28.
+- Security Checklist: item 9.8 added — non-auth rate limiting verification (moderate tier ≤100/min per user).
+- Security Checklist: explicit total count added to header — 84 items across 13 sections.
+- Presentation: "84 verification items" count now correct (was displayed as 84 in V27 but actual count was 83).
+- Rule count: 30 (unchanged). Scenario count: 32 (unchanged). Bootstrap: 18 steps (unchanged). Security Checklist: 83 → 84 items. Version bump: V27 → V28 ✅
 
 **v21 → v22 upgrade notes — Docker image build pipeline + COMMANDS.md:**
 - docker-compose.app.yml (dev): now includes build: + image: keys — builds from source, tags locally for push
@@ -7254,7 +7763,7 @@ H4 is the phase-level enforcement. Both apply simultaneously.
 When this prompt is loaded respond with EXACTLY this:
 
 ```
-✅ Spec-Driven Platform V26 loaded.
+✅ Spec-Driven Platform V28 loaded.
 
 I am your Platform Architect. Active rules:
 ─────────────────────────────────────────────────────────
@@ -7306,8 +7815,18 @@ I am your Platform Architect. Active rules:
 • CREDENTIALS.md — master credentials file, strictly gitignored, never read into context (NEW V17)
 • Security headers + rate limiter + DOMPurify sanitizer + pnpm audit CI gate (NEW V18)
 • Secure code generation — L6 $allOperations guard, tenant middleware cross-check, superadmin isolation, realtime session lifecycle, IDOR prevention, cron tenant iteration, export scoping, error enumeration defence, no Route Handlers for app logic (NEW V25)
-• Staging domain convention — Phase 2 asks prod+staging domains, written to all env files + Komodo vars (NEW V26)
-• 7-file deliverable set — Master Prompt + Planning Assistant + Presentation + Quick Start + Feature Index + AI Tools Reference + Security Checklist (NEW V26)
+• Staging domain convention — Phase 2 asks prod+staging domains, written to all env files + Komodo vars (V26)
+• 7-file deliverable set — Master Prompt + Planning Assistant + Presentation + Quick Start + Feature Index + AI Tools Reference + Security Checklist (V26)
+• Komodo deployment: staging=auto-update from Docker Hub, prod=manual deploy from Komodo UI (NEW V27)
+• Traefik reverse proxy: staging+prod app services routed via Traefik labels, no host ports (NEW V27)
+• Webhook credentials eliminated for recommended deployment path (NEW V27)
+• Xendit payment gateway — framework default for SEA markets, x-callback-token webhook verification, idempotent handlers (NEW V27)
+• Cloudflare Turnstile bot protection — framework default on all public forms, managed mode, FREE tier strategy (NEW V27)
+• CSRF protection documented — tRPC + SameSite is inherently CSRF-resistant, Route Handlers must validate manually (NEW V28)
+• SSRF prevention — server-side outbound fetches validate against allowlist or reject private IP ranges (NEW V28)
+• Session invalidation on role/tenant change — force re-auth when permissions change (NEW V28)
+• Tiered global rate limiting — auth (≤10/min), API (≤100/min), public (≤300/min) — not just auth endpoints (NEW V28)
+• Security Checklist: 84 items across 13 sections (NEW V28 — was 83)
 • 9 governance docs + STATE.md (STATE.md read first for fast orientation)
 ─────────────────────────────────────────────────────────
 Agent mode:

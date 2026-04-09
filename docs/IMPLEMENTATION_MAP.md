@@ -1,12 +1,12 @@
-# Implementation Map — Spec-Driven Platform V26
+# Implementation Map — Spec-Driven Platform V28
 # Current build state after each phase
 # ---
 
 ## Project Info
 - App Name:     Inventorize
 - App Slug:     inventorize
-- Phase:        Phase 8 — Iterative Buildout (Batches 1–12 complete)
-- Last Updated: 2026-04-05 (CI pipeline fixes — TypeScript + ESLint)
+- Phase:        Phase 8 — Iterative Buildout (Batches 1–12 complete, V28 propagation done)
+- Last Updated: 2026-04-09 (V28 PRODUCT.md propagation — Xendit, Turnstile, Komodo+Traefik)
 
 ---
 
@@ -155,6 +155,58 @@
 
 ---
 
+## Pending Implementation — V28 PRODUCT.md Changes (governance propagated, code not yet built)
+
+### Billing Module — Prisma Schema + Migrations (PENDING)
+- [ ] SubscriptionPlan model (global — no tenantId): id, name, description, monthlyPricePhp, monthlyPriceUsd, monthlyPriceIdr, maxUsers, maxProducts, maxWarehouses, features (Json), isActive, displayOrder, createdAt, updatedAt
+- [ ] TenantSubscription model (tenant-scoped): id, tenantId, planId, status (active/past_due/canceled/trialing), currentPeriodStart, currentPeriodEnd, xenditSubscriptionId, xenditCustomerId, cancelAtPeriodEnd, createdAt, updatedAt
+- [ ] Payment model (tenant-scoped): id, tenantId, subscriptionId, xenditInvoiceId, xenditPaymentId, amount, currency (PHP/USD/IDR), status (pending/paid/failed/expired/refunded), paidAt, failedReason, createdAt
+- [ ] Refund model (tenant-scoped): id, tenantId, paymentId, xenditRefundId, amount, currency, status (pending/completed/failed), reason, processedAt, createdAt
+- [ ] Migration: add 4 new tables + indexes + foreign keys
+- [ ] Seed: at least 3 SubscriptionPlan rows (Free, Professional, Enterprise)
+
+### Billing Module — tRPC Routers (PENDING)
+- [ ] subscription-plan.router.ts — platform-level CRUD (super_admin only), public list for pricing page
+- [ ] tenant-subscription.router.ts — current subscription, upgrade/downgrade, cancel
+- [ ] payment.router.ts — payment history list with filters, tenant-scoped
+- [ ] refund.router.ts — request refund, list refunds, tenant-scoped
+- [ ] platform.router.ts — extend with subscription metrics, refund approval
+
+### Billing Module — Pages (PENDING)
+- [ ] /platform/plans — manage subscription plans (super_admin)
+- [ ] /platform/refunds — review and approve refund requests (super_admin)
+- [ ] /[tenantSlug]/billing — current plan, usage, payment history, upgrade/cancel
+- [ ] /register — public registration page (new tenant + first admin + plan selection)
+- [ ] /reset-password — public password reset page
+
+### Xendit Integration (PENDING)
+- [ ] packages/jobs/src/queues/xendit-webhook-processor.ts — BullMQ queue definition + typed payload
+- [ ] packages/jobs/src/workers/xendit-webhook-worker.ts — process webhook events (invoice.paid, invoice.expired, refund.completed, etc.)
+- [ ] apps/web/src/app/api/webhooks/xendit/route.ts — POST handler: x-callback-token verification (constant-time), enqueue to BullMQ, return 200 immediately
+- [ ] apps/web/src/server/lib/xendit.ts — Xendit API client (Basic Auth, create invoice, create refund, manage subscriptions)
+- [ ] Worker startup: register xendit-webhook-processor worker in startup.ts
+
+### Cloudflare Turnstile Integration (PENDING)
+- [ ] apps/web/src/components/turnstile-widget.tsx — @marsidev/react-turnstile wrapper component
+- [ ] apps/web/src/server/lib/turnstile.ts — server-side siteverify validation (POST to challenges.cloudflare.com)
+- [ ] Wire Turnstile widget into /login, /register, /reset-password pages
+- [ ] Wire server-side validation into auth tRPC procedures (login, register, password reset)
+- [ ] CSP update in next.config.ts: add challenges.cloudflare.com to script-src + frame-src
+
+### Deployment — Traefik + Komodo (PENDING compose updates)
+- [ ] deploy/compose/stage/docker-compose.app.yml — add Traefik labels + proxy external network, remove host ports on app service
+- [ ] deploy/compose/prod/docker-compose.app.yml — add Traefik labels + proxy external network, remove host ports on app service
+- [ ] Verify .env.staging has TRAEFIK_NETWORK=proxy + APP_DOMAIN (already added in governance propagation)
+- [ ] Verify .env.prod has TRAEFIK_NETWORK=proxy + APP_DOMAIN (already added in governance propagation)
+
+### V28 Security Hardening (PENDING code changes)
+- [ ] Session invalidation on role/tenant change — securityVersion field on User model, checked in Auth.js session callback
+- [ ] SSRF prevention utility — validate outbound URLs against private IP blocklist before fetch
+- [ ] Tiered rate limiting verification — ensure all tRPC procedures use appropriate tier (auth ≤10/min, api ≤100/min, public ≤300/min)
+- [ ] CSRF verification on non-tRPC Route Handlers (upload, webhooks already use signature verification)
+
+---
+
 ## Generated Files Summary
 
 ### Root Config
@@ -193,7 +245,7 @@
 ### MCP & SpecStory
 - [x] .vscode/mcp.json
 - [x] .specstory/config.json
-- [x] .specstory/specs/v26-master-prompt.md
+- [x] .specstory/specs/v28-master-prompt.md
 
 ### Skills
 - [x] .github/skills/spec-driven-core/SKILL.md
