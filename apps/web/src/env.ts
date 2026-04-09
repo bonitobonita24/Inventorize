@@ -29,6 +29,10 @@ const envSchema = z.object({
   SMTP_HOST: z.string().min(1),
   SMTP_PORT: z.coerce.number(),
   SMTP_FROM: z.string().min(1),
+
+  // Cloudflare Turnstile (bot protection)
+  TURNSTILE_SECRET_KEY: z.string().min(1),
+  NEXT_PUBLIC_TURNSTILE_SITE_KEY: z.string().min(1),
 });
 
 export type Env = z.infer<typeof envSchema>;

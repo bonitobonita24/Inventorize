@@ -6,6 +6,7 @@ import Credentials from 'next-auth/providers/credentials';
 import { compare } from 'bcryptjs';
 import { platformPrisma } from '@inventorize/db';
 import type { UserRole } from '@inventorize/shared/enums';
+import { verifyTurnstileToken } from '@/server/lib/turnstile';
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
@@ -14,9 +15,21 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       credentials: {
         email: { label: 'Email', type: 'email' },
         password: { label: 'Password', type: 'password' },
+        turnstileToken: { label: 'Turnstile Token', type: 'text' },
       },
       async authorize(credentials) {
         if (typeof credentials?.email !== 'string' || typeof credentials?.password !== 'string') {
+          return null;
+        }
+
+        // V28 bot protection: verify Turnstile token before any DB lookup
+        // Generic failure message — do not reveal whether Turnstile or credentials failed
+        const turnstileToken = credentials.turnstileToken;
+        if (typeof turnstileToken !== 'string' || turnstileToken === '') {
+          return null;
+        }
+        const turnstileOk = await verifyTurnstileToken(turnstileToken);
+        if (!turnstileOk) {
           return null;
         }
 

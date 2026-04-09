@@ -1,10 +1,12 @@
-// Login page — credentials-based authentication
+// Login page — credentials-based authentication with Cloudflare Turnstile bot protection
 
 'use client';
 
-import { Suspense, useState } from 'react';
+import { Suspense, useRef, useState } from 'react';
 import { signIn } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { Turnstile } from '@marsidev/react-turnstile';
+import type { TurnstileInstance } from '@marsidev/react-turnstile';
 
 export default function LoginPage() {
   return (
@@ -31,15 +33,26 @@ function LoginForm() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const turnstileRef = useRef<TurnstileInstance>(null);
+
+  const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? '1x00000000000000000000AA';
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+
+    if (turnstileToken === null) {
+      setError('Please complete the security challenge.');
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
 
     const result = await signIn('credentials', {
       email,
       password,
+      turnstileToken,
       redirect: false,
     });
 
@@ -47,6 +60,9 @@ function LoginForm() {
 
     if (result?.error !== undefined && result.error !== null) {
       setError('Invalid credentials.');
+      // Reset Turnstile widget so user can re-attempt
+      setTurnstileToken(null);
+      turnstileRef.current?.reset();
       return;
     }
 
@@ -100,9 +116,22 @@ function LoginForm() {
             />
           </div>
 
+          {/* Cloudflare Turnstile — managed mode, invisible challenge */}
+          <Turnstile
+            ref={turnstileRef}
+            siteKey={siteKey}
+            options={{ theme: 'auto' }}
+            onSuccess={(token) => setTurnstileToken(token)}
+            onExpire={() => setTurnstileToken(null)}
+            onError={() => {
+              setTurnstileToken(null);
+              setError('Security challenge failed. Please refresh and try again.');
+            }}
+          />
+
           <button
             type="submit"
-            disabled={isLoading}
+            disabled={isLoading || turnstileToken === null}
             className="inline-flex h-10 w-full items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground ring-offset-background transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
           >
             {isLoading ? 'Signing in...' : 'Sign in'}
