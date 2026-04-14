@@ -386,7 +386,11 @@ Cache / queue:             Valkey + BullMQ
 File storage:              MinIO (dev) / S3 (prod)
 Payment gateway:           Xendit (test keys dev/staging, live keys prod)
 Bot protection:            Cloudflare Turnstile (Managed mode, free tier)
-UI component library:      shadcn/ui + Tailwind CSS
+UI component library:      shadcn/ui + Tailwind CSS (locked — no alternatives)
+Chart library:             shadcn/ui Chart (Recharts) — dashboard KPIs and bar charts
+Map library:               mapcn (MapLibre GL) — locked for future feature, no flows/modules yet
+Complex UI components:     none — standard shadcn/ui primitives cover current scope
+Icon set:                  lucide-react (shadcn/ui default — no other icon libraries)
 
 ## Design Identity
 Brand feel:         professional/enterprise
@@ -394,6 +398,8 @@ Target aesthetic:   Clean, dense information layout optimised for fast warehouse
 Industry category:  SaaS / inventory management
 Dark mode required: optional toggle (default: light mode)
 Key constraint:     Mobile-first responsive layout — warehouse staff primarily use smartphones and tablets. Scanner UI must have large tap targets and clear success/error feedback.
+Theming approach:   shadcn/ui CSS variables (--primary, --secondary, etc.) — customized in globals.css
+                    Reference: https://ui.shadcn.com/docs/theming · Dark mode: https://ui.shadcn.com/docs/dark-mode
 
 ## Out of Scope
 - Multi-warehouse support per tenant (single location per tenant, no warehouse-to-warehouse transfers)
